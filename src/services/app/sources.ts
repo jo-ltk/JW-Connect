@@ -1,0 +1,670 @@
+import { loadPub } from 'meeting-schedules-parser';
+import { store } from '@states/index';
+import {
+  ApplyMinistryType,
+  CongregationBibleStudyType,
+  LivingAsChristiansType,
+  SourceAssignmentType,
+  SourceWeekIncomingType,
+  SourceWeekType,
+} from '@definition/sources';
+import { AssignmentAYFOnlyType, AssignmentCode } from '@definition/assignment';
+import { assignmentState } from '@states/assignment';
+import { dbSourcesSave } from '@services/dexie/sources';
+import { dbSchedCheck } from '@services/dexie/schedules';
+import { cookiesConsentState } from '@states/app';
+import { getTranslation } from '@services/i18n/translation';
+import { MeetingType } from '@definition/app';
+import {
+  JWLangState,
+  sourcesJWAutoImportFrequencyState,
+  sourcesJWAutoImportState,
+} from '@states/settings';
+import { addWeeks, formatDate, getWeekDate } from '@utils/date';
+import { splitTranslationVariations } from '@utils/i18n';
+import { STORAGE_KEY } from '@constants/index';
+import logger from '@services/logger';
+
+export const sourcesImportEPUB = async (
+  fileEPUB: File | Blob | { url: string }
+) => {
+  const data = await loadPub(fileEPUB);
+  await sourcesFormatAndSaveData(data);
+};
+
+export const sourcesImportJW = async (
+  dataJw: SourceWeekIncomingType[],
+  sourceLanguage?: string
+) => {
+  await sourcesFormatAndSaveData(dataJw, sourceLanguage);
+
+  const isAutoImportEnabled = store.get(sourcesJWAutoImportState);
+  const cookiesConsent = store.get(cookiesConsentState);
+
+  const autoImportFrequency = store.get(sourcesJWAutoImportFrequencyState);
+
+  if (cookiesConsent && isAutoImportEnabled) {
+    const nextSync = addWeeks(new Date(), autoImportFrequency);
+
+    localStorage.setItem(STORAGE_KEY.source_import, nextSync.toISOString());
+  }
+};
+
+const remapAssignmentType = (week: string, type: number) => {
+  if (week < '2024/01/01') {
+    return type;
+  }
+
+  switch (type) {
+    case 101:
+      return 123;
+    case 102:
+      return 124;
+    default:
+      return type;
+  }
+};
+
+const getAYFAssignmentTypes = (sourceLanguage: string) => {
+  const assignmentTypes = store.get(assignmentState);
+
+  const result: AssignmentAYFOnlyType[] = assignmentTypes
+    .filter((record) => record.type === 'ayf')
+    .flatMap((record) => {
+      const label =
+        record.assignment_type_name[sourceLanguage] ??
+        record.assignment_type_name.E ??
+        '';
+
+      // a translation may list every known wording for a given assignment,
+      // pipe-separated: each variation is a distinct label to match against
+      return splitTranslationVariations(label).map((variation) => ({
+        label: variation,
+        value: record.code,
+      }));
+    })
+    .sort((a, b) => {
+      return a.value > b.value ? 1 : -1;
+    });
+
+  return result;
+};
+
+const stripZeroWidthSpaces = (label: string) =>
+  label.replaceAll('\u200B', '').trim();
+
+const normalizeAYFLabel = (label: string) =>
+  label
+    .replaceAll('\u200B', '')
+    .replace(/\([^)]{0,1000}\)/g, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .trim();
+
+type NormalizedAYFType = {
+  normalized: string;
+  value: number;
+};
+
+const buildAYFLookup = (assTypeList: AssignmentAYFOnlyType[]) => {
+  const exactMap = new Map<string, number>();
+  for (const type of assTypeList) {
+    const key = stripZeroWidthSpaces(type.label).toLowerCase();
+    if (key.length > 0) {
+      exactMap.set(key, type.value);
+    }
+  }
+
+  const prefixList: NormalizedAYFType[] = assTypeList
+    .map((type) => ({
+      normalized: normalizeAYFLabel(type.label),
+      value: type.value,
+    }))
+    .filter((entry) => entry.normalized.length > 0)
+    .sort((a, b) => b.normalized.length - a.normalized.length);
+
+  return { exactMap, prefixList };
+};
+
+type AYFLookup = ReturnType<typeof buildAYFLookup>;
+
+const inferAYFTypeFromLabel = (
+  rawLabel: string | undefined | null,
+  lookup: AYFLookup
+): number => {
+  if (!rawLabel?.trim()) {
+    logger.warn(
+      'sources',
+      'AYF type label is empty or missing, falling back to MM_Discussion'
+    );
+    return AssignmentCode.MM_Discussion;
+  }
+
+  const exactKey = stripZeroWidthSpaces(rawLabel).toLowerCase();
+  const exactValue = lookup.exactMap.get(exactKey);
+  if (exactValue !== undefined) return exactValue;
+
+  const normalizedInput = normalizeAYFLabel(rawLabel);
+
+  if (!normalizedInput) {
+    logger.warn(
+      'sources',
+      `AYF type label reduced to empty after normalization, falling back to MM_Discussion: "${rawLabel.slice(0, 100)}"`
+    );
+    return AssignmentCode.MM_Discussion;
+  }
+
+  const prefixMatch = lookup.prefixList.find((type) =>
+    normalizedInput.startsWith(type.normalized)
+  );
+  if (prefixMatch) return prefixMatch.value;
+
+  logger.warn(
+    'sources',
+    `AYF type label not recognized, falling back to MM_Discussion: "${rawLabel.slice(0, 100)}"`
+  );
+  return AssignmentCode.MM_Discussion;
+};
+
+const getAssType = (
+  lookup: AYFLookup,
+  label: string | undefined,
+  weekOf: string
+) => {
+  const assType = inferAYFTypeFromLabel(label, lookup);
+
+  return remapAssignmentType(weekOf, assType);
+};
+
+const parseMidweekMeeting = (
+  src: SourceWeekIncomingType,
+  source_lang: string,
+  ayfLookup: AYFLookup,
+  weekOf: string
+) => {
+  const midweek_meeting = {} as SourceWeekType['midweek_meeting'];
+
+  midweek_meeting.week_date_locale = {
+    [source_lang]: src.mwb_week_date_locale,
+  };
+  midweek_meeting.weekly_bible_reading = {
+    [source_lang]: src.mwb_weekly_bible_reading,
+  };
+  midweek_meeting.song_first = {
+    [source_lang]: src.mwb_song_first.toString(),
+  };
+  midweek_meeting.tgw_talk = {
+    src: { [source_lang]: src.mwb_tgw_talk_title },
+    time: { default: 10, override: [] },
+  };
+  midweek_meeting.tgw_gems = {
+    title: { [source_lang]: src.mwb_tgw_gems_title },
+    time: { default: 10, override: [] },
+  };
+  midweek_meeting.tgw_bible_reading = {
+    src: { [source_lang]: src.mwb_tgw_bread },
+    title: { [source_lang]: src.mwb_tgw_bread_title },
+  };
+
+  const cnAYF = src.mwb_ayf_count;
+  midweek_meeting.ayf_count = { [source_lang]: src.mwb_ayf_count };
+
+  midweek_meeting.ayf_part1 = {
+    src: { [source_lang]: src.mwb_ayf_part1 },
+    time: { [source_lang]: src.mwb_ayf_part1_time },
+    title: { [source_lang]: src.mwb_ayf_part1_title },
+    type: {
+      [source_lang]: getAssType(ayfLookup, src.mwb_ayf_part1_type, weekOf),
+    },
+  };
+
+  if (cnAYF > 1) {
+    midweek_meeting.ayf_part2 = {
+      src: { [source_lang]: src.mwb_ayf_part2 },
+      time: { [source_lang]: src.mwb_ayf_part2_time },
+      title: { [source_lang]: src.mwb_ayf_part2_title },
+      type: {
+        [source_lang]: getAssType(ayfLookup, src.mwb_ayf_part2_type, weekOf),
+      },
+    };
+  }
+
+  if (cnAYF > 2) {
+    midweek_meeting.ayf_part3 = {
+      src: { [source_lang]: src.mwb_ayf_part3 ?? '' },
+      time: { [source_lang]: src.mwb_ayf_part3_time ?? 0 },
+      title: { [source_lang]: src.mwb_ayf_part3_title ?? '' },
+      type: {
+        [source_lang]: getAssType(ayfLookup, src.mwb_ayf_part3_type, weekOf),
+      },
+    };
+  }
+
+  if (cnAYF > 3) {
+    midweek_meeting.ayf_part4 = {
+      src: { [source_lang]: src.mwb_ayf_part4 ?? '' },
+      time: { [source_lang]: src.mwb_ayf_part4_time ?? 0 },
+      title: { [source_lang]: src.mwb_ayf_part4_title ?? '' },
+      type: {
+        [source_lang]: getAssType(ayfLookup, src.mwb_ayf_part4_type, weekOf),
+      },
+    };
+  }
+
+  midweek_meeting.song_middle = {
+    [source_lang]: src.mwb_song_middle.toString(),
+  };
+  midweek_meeting.lc_count = {
+    default: { [source_lang]: src.mwb_lc_count },
+    override: [],
+  };
+  midweek_meeting.lc_part1 = {
+    title: {
+      default: { [source_lang]: src.mwb_lc_part1_title },
+      override: [],
+    },
+    time: {
+      default: { [source_lang]: src.mwb_lc_part1_time },
+      override: [],
+    },
+    desc: {
+      default: { [source_lang]: src.mwb_lc_part1_content },
+      override: [],
+    },
+  };
+
+  if (src.mwb_lc_count > 1) {
+    midweek_meeting.lc_part2 = {
+      title: {
+        default: { [source_lang]: src.mwb_lc_part2_title ?? '' },
+        override: [],
+      },
+      time: {
+        default: { [source_lang]: src.mwb_lc_part2_time ?? 0 },
+        override: [],
+      },
+      desc: {
+        default: { [source_lang]: src.mwb_lc_part2_content ?? '' },
+        override: [],
+      },
+    };
+  }
+
+  midweek_meeting.lc_cbs = {
+    src: { [source_lang]: src.mwb_lc_cbs },
+    time: { default: 30, override: [] },
+    title: {
+      default: { [source_lang]: src.mwb_lc_cbs_title },
+      override: [],
+    },
+  };
+  midweek_meeting.song_conclude = {
+    default: { [source_lang]: src.mwb_song_conclude.toString() },
+    override: [],
+  };
+
+  return midweek_meeting;
+};
+
+const parseWeekendMeeting = (
+  src: SourceWeekIncomingType,
+  source_lang: string
+) => {
+  const weekend_meeting = {} as SourceWeekType['weekend_meeting'];
+
+  weekend_meeting.song_first = [];
+  weekend_meeting.public_talk = [];
+  weekend_meeting.co_talk_title = {
+    public: { src: '', updatedAt: '' },
+    service: { src: '', updatedAt: '' },
+  };
+  weekend_meeting.song_middle = {
+    [source_lang]: String(src.w_study_opening_song ?? ''),
+  };
+  weekend_meeting.w_study = { [source_lang]: src.w_study_title ?? '' };
+  weekend_meeting.song_conclude = {
+    default: { [source_lang]: String(src.w_study_concluding_song ?? '') },
+    override: [],
+  };
+
+  return weekend_meeting;
+};
+
+const sourcesFormatAndSaveData = async (
+  data: SourceWeekIncomingType[],
+  sourceLanguage?: string
+) => {
+  const source_lang = (sourceLanguage || store.get(JWLangState)).toUpperCase();
+  const assTypeList = getAYFAssignmentTypes(source_lang);
+
+  if (assTypeList.length === 0) {
+    logger.warn(
+      'sources',
+      'AYF assignment type list is empty — type inference will default to MM_Discussion for all parts'
+    );
+  }
+
+  const ayfLookup = buildAYFLookup(assTypeList);
+
+  for await (const src of data) {
+    const obj = {} as SourceWeekType;
+
+    const isMWB = Object.keys(src).includes('mwb_week_date_locale');
+    const isW = Object.keys(src).includes('w_study_date_locale');
+
+    obj.weekOf = src.mwb_week_date || src.w_study_date || src.week_date;
+
+    const mondayDate = formatDate(
+      getWeekDate(new Date(obj.weekOf)),
+      'yyyy/MM/dd'
+    );
+
+    if (mondayDate === obj.weekOf) {
+      if (isMWB) {
+        obj.midweek_meeting = parseMidweekMeeting(
+          src,
+          source_lang,
+          ayfLookup,
+          obj.weekOf
+        );
+      }
+
+      if (isW) {
+        obj.weekend_meeting = parseWeekendMeeting(src, source_lang);
+      }
+
+      await dbSourcesSave(obj);
+
+      // check if record exists in sched table
+      await dbSchedCheck(obj.weekOf);
+    }
+  }
+};
+
+const escapeRegExp = (value: string) =>
+  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export const sourcesCheckAYFExplainBeliefsAssignment = (
+  source: string,
+  language: string
+) => {
+  if (source) {
+    // every known wording for a given marker is listed pipe-separated in the
+    // translation, so each one has to become its own escaped alternative
+    const talkVariations = splitTranslationVariations(
+      getTranslation({ key: 'tr_talk', language })
+    ).map((variation) => escapeRegExp(variation));
+
+    const demonstrationVariations = splitTranslationVariations(
+      getTranslation({ key: 'tr_demonstration', language })
+    ).map((variation) => escapeRegExp(variation));
+
+    const searchKey = [...talkVariations, ...demonstrationVariations].join('|');
+
+    if (!searchKey) return false;
+
+    // the marker appearing first in the source decides whether the part is a
+    // talk or a demonstration, hence the single alternation over both groups
+    const match = new RegExp(
+      String.raw`(?:^|\s)(${searchKey})`,
+      'i'
+    ).exec(source);
+
+    if (!match) return false;
+
+    return talkVariations.some((variation) =>
+      new RegExp(`^${variation}$`, 'i').test(match[1])
+    );
+  }
+
+  return false;
+};
+
+export const sourcesCheckLCElderAssignment = (
+  source: string,
+  desc: string,
+  language: string
+) => {
+  if (source) {
+    let isElderPart = false;
+
+    const elderVariations = getTranslation({
+      key: 'tr_lcSourceElderVariations',
+      language,
+    });
+
+    const search = `(${elderVariations})`;
+    const regex = new RegExp(search.toLowerCase());
+    const array = regex.exec(source.toLowerCase());
+    isElderPart = Array.isArray(array);
+
+    if (!isElderPart && desc) {
+      const contentVariations = getTranslation({
+        key: 'tr_lcContentElderVariations',
+        language,
+      });
+
+      const search = `(${contentVariations})`;
+      const regex = new RegExp(search.toLowerCase());
+      const array = regex.exec(desc.toLowerCase());
+      isElderPart = Array.isArray(array);
+    }
+
+    return isElderPart;
+  }
+
+  return false;
+};
+
+export const sourcesCheckLCAssignments = (
+  source: string,
+  desc: string | undefined,
+  language: string
+) => {
+  if (source) {
+    const noAssigned = getTranslation({
+      key: 'tr_lcNoAssignedVariations',
+      language,
+    });
+
+    const search = `(${noAssigned})`;
+    const regex = new RegExp(search.toLowerCase());
+    const array = regex.exec(source.toLowerCase());
+
+    if (!Array.isArray(array)) return false;
+
+    if (!desc) return true;
+
+    const videoContent = getTranslation({
+      key: 'tr_lcNoAssignedContentVariations',
+      language,
+    });
+
+    const videoSearch = `(${videoContent})`;
+    const videoRegex = new RegExp(videoSearch.toLowerCase());
+
+    return Array.isArray(videoRegex.exec(desc.toLowerCase()));
+  }
+
+  return false;
+};
+
+export const sourcesPartTiming = (
+  source: SourceWeekType,
+  type: SourceAssignmentType,
+  dataView: string,
+  lang: string
+) => {
+  if (type === 'tgw_talk') {
+    const part = source.midweek_meeting.tgw_talk;
+    const timeOverride =
+      part.time.override.find((record) => record.type === dataView)?.value || 0;
+    const timeDefault = part.time.default as number;
+    const time = timeOverride > 0 ? timeOverride : timeDefault;
+
+    return time;
+  }
+
+  if (type === 'tgw_gems') {
+    const part = source.midweek_meeting.tgw_gems;
+    const timeOverride =
+      part.time.override.find((record) => record.type === dataView)?.value || 0;
+    const timeDefault = part.time.default as number;
+    const time = timeOverride > 0 ? timeOverride : timeDefault;
+
+    return time;
+  }
+
+  if (type === 'lc_part1') {
+    const part = source.midweek_meeting.lc_part1;
+    const timeOverride =
+      part.time.override.find((record) => record.type === dataView)?.value || 0;
+    const timeDefault =
+      typeof part.time.default === 'number'
+        ? part.time.default
+        : part.time.default[lang];
+    const time = timeOverride > 0 ? timeOverride : timeDefault;
+
+    return time;
+  }
+
+  if (type === 'lc_part2') {
+    const part = source.midweek_meeting.lc_part2;
+    const timeOverride =
+      part.time.override.find((record) => record.type === dataView)?.value || 0;
+    const timeDefault =
+      typeof part.time.default === 'number'
+        ? part.time.default
+        : part.time.default[lang];
+    const time = timeOverride > 0 ? timeOverride : timeDefault;
+
+    return time;
+  }
+
+  if (type === 'lc_part3') {
+    const part = source.midweek_meeting.lc_part3;
+    const time =
+      part.time.find((record) => record.type === dataView)?.value || 0;
+
+    return time;
+  }
+
+  if (type === 'lc_cbs') {
+    const part = source.midweek_meeting.lc_cbs;
+    const timeOverride =
+      part.time.override.find((record) => record.type === dataView)?.value || 0;
+    const timeDefault = part.time.default as number;
+    const time = timeOverride > 0 ? timeOverride : timeDefault;
+
+    return time;
+  }
+
+  if (type.includes('ayf_part')) {
+    const part = source.midweek_meeting[type] as ApplyMinistryType;
+    const time = part.time[lang];
+
+    return time;
+  }
+};
+
+export const sourcesCountLC = (
+  source: SourceWeekType,
+  dataView: string,
+  lang: string
+) => {
+  const countDefault = source.midweek_meeting.lc_count.default[lang];
+  const countOverride =
+    source.midweek_meeting.lc_count.override.find(
+      (record) => record.type === dataView
+    )?.value || 0;
+
+  const count = countOverride > 0 ? countOverride : countDefault;
+
+  return count;
+};
+
+export const sourcesLCGetTitle = (
+  lcPart: LivingAsChristiansType,
+  dataView: string,
+  lang: string
+) => {
+  const titleDefault = lcPart.title.default[lang];
+  const titleOverride =
+    lcPart.title.override.find((record) => record.type === dataView)?.value ||
+    '';
+
+  const title = titleOverride.length > 0 ? titleOverride : titleDefault;
+
+  return title;
+};
+
+export const sourcesCBSGetTitle = (
+  cbs: CongregationBibleStudyType,
+  dataView: string,
+  lang: string
+) => {
+  const titleDefault = cbs.title.default[lang];
+  const titleOverride =
+    cbs.title.override.find((record) => record.type === dataView)?.value || '';
+
+  const title = titleOverride.length > 0 ? titleOverride : titleDefault;
+
+  return title;
+};
+
+export const sourcesSongConclude = ({
+  dataView,
+  lang,
+  meeting,
+  source,
+}: {
+  meeting: MeetingType;
+  source: SourceWeekType;
+  dataView: string;
+  lang: string;
+}) => {
+  let song: string | undefined;
+
+  if (meeting === 'midweek') {
+    const songDefault = source.midweek_meeting.song_conclude.default[lang];
+    const songOverride =
+      source.midweek_meeting.song_conclude.override.find(
+        (record) => record.type === dataView
+      )?.value || '';
+
+    song = songOverride.length > 0 ? songOverride : songDefault;
+  }
+
+  if (meeting === 'weekend') {
+    const songDefault = source.weekend_meeting.song_conclude.default[lang];
+    const songOverride =
+      source.weekend_meeting.song_conclude.override.find(
+        (record) => record.type === dataView
+      )?.value || '';
+
+    song = songOverride.length > 0 ? songOverride : songDefault;
+  }
+
+  return song;
+};
+
+export const sourcesLCGet = (
+  part: LivingAsChristiansType,
+  dataView: string,
+  lang: string
+) => {
+  const srcOverride =
+    part.title.override.find((record) => record.type === dataView)?.value || '';
+
+  const srcDefault = part.title.default[lang];
+  const src = srcOverride.length > 0 ? srcOverride : srcDefault;
+
+  const descOverride =
+    part.desc.override.find((record) => record.type === dataView)?.value || '';
+
+  const descDefault = part.desc.default[lang];
+  const desc = descOverride.length > 0 ? descOverride : descDefault;
+
+  return { src, desc };
+};

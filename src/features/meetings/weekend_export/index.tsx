@@ -1,0 +1,76 @@
+import { Box } from '@mui/material';
+import IconLoading from '@components/icon_loading';
+import { useAppTranslation } from '@hooks/index';
+import { WeekendExportType } from './index.types';
+import useWeekendExport from './useWeekendExport';
+import Button from '@components/button';
+import Dialog from '@components/dialog';
+import DialogActions from '@components/dialog_actions';
+import WeekRangeSelector from '../week_range_selector';
+import Checkbox from '@components/checkbox';
+
+const WeekendExport = ({ open, onClose }: WeekendExportType) => {
+  const { t } = useAppTranslation();
+
+  const {
+    handleSetEndWeek,
+    handleSetStartWeek,
+    isProcessing,
+    handleExportSchedules,
+    toggleExportOutgoingSpeakersSchedule,
+    toggleExportWeekendMeetingSchedule,
+    exportOutgoingSpeakersScheduleIsChecked,
+    exportWeekendMeetingScheduleIsChecked,
+  } = useWeekendExport(onClose);
+
+  return (
+    <Dialog
+      onClose={onClose}
+      open={open}
+      sx={{ position: 'relative' }}
+      title={t('tr_exportWM')}
+      description={t('tr_exportWMDesc')}
+    >
+      <WeekRangeSelector
+        meeting="weekend"
+        onStartChange={handleSetStartWeek}
+        onEndChange={handleSetEndWeek}
+      />
+
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+        }}
+      >
+        <Checkbox
+          checked={exportWeekendMeetingScheduleIsChecked}
+          onChange={toggleExportWeekendMeetingSchedule}
+          label={t('tr_weekendMeetingPrint')}
+        />
+        <Checkbox
+          checked={exportOutgoingSpeakersScheduleIsChecked}
+          onChange={toggleExportOutgoingSpeakersSchedule}
+          label={t('tr_outgoingSpeakersSchedule')}
+        />
+      </Box>
+
+      <DialogActions>
+        <Button variant="secondary" onClick={onClose}>
+          {t('tr_cancel')}
+        </Button>
+        <Button
+          variant="main"
+          disabled={isProcessing}
+          endIcon={isProcessing && <IconLoading />}
+          onClick={handleExportSchedules}
+        >
+          {t('tr_export')}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default WeekendExport;

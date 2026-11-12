@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "types": ["@svgx/vite-plugin-react", "node", "vite/client"],
+    "lib": ["ESNext", "DOM"],
+    "target": "ESNext",
+    "resolveJsonModule": true,
+    "paths": {
+      "@mui/styled-engine": ["./node_modules/@mui/styled-engine-sc"],
+      "@assets/*": ["./src/assets/*"],
+      "@components/*": ["./src/components/*"],
+      "@icons/*": ["./src/components/icons/*"],
+      "@constants/*": ["./src/constants/*"],
+      "@features/*": ["./src/features/*"],
+      "@hooks/*": ["./src/hooks/*"],
+      "@layouts/*": ["./src/layouts/*"],
+      "@pages/*": ["./src/pages/*"],
+      "@routes/*": ["./src/routes/*"],
+      "@services/*": ["./src/services/*"],
+      "@states/*": ["./src/states/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@wrapper/*": ["./src/wrapper/*"],
+      "@locales/*": ["./src/locales/*"],
+      "@definition/*": ["./src/definition/*"],
+      "@global/*": ["./src/global/*"],
+      "@db/*": ["./src/indexedDb/*"],
+      "@views/*": ["./src/views/*"]
+    }
+  },
+  "include": ["src/**/*", "types/**/*"]
+}

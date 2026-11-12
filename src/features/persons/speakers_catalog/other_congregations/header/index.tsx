@@ -1,0 +1,157 @@
+import { MouseEvent } from 'react';
+import { Box, IconButton } from '@mui/material';
+import {
+  IconCheck,
+  IconCloud,
+  IconCloudOff,
+  IconDelete,
+  IconEdit,
+  IconExpand,
+} from '@components/icons';
+import {
+  useAppTranslation,
+  useBreakpoints,
+  useCurrentUser,
+} from '@hooks/index';
+import { IncomingCongregationHeaderType } from './index.types';
+import Tooltip from '@components/tooltip';
+import Typography from '@components/typography';
+
+const IncomingCongregationHeader = ({
+  expanded,
+  onExpandChange,
+  editMode,
+  onEditModeChange,
+  cong_name,
+  cong_number,
+  cong_synced,
+  onDelete,
+}: IncomingCongregationHeaderType) => {
+  const { t } = useAppTranslation();
+
+  const { isPublicTalkCoordinator } = useCurrentUser();
+
+  const { tablet600Down } = useBreakpoints();
+
+  const handleToggleExpand = () => onExpandChange(cong_number);
+
+  const handleActionClick = (
+    event: MouseEvent<HTMLButtonElement>,
+    action: VoidFunction
+  ) => {
+    event.stopPropagation();
+    action();
+  };
+
+  return (
+    <Box
+      onClick={handleToggleExpand}
+      sx={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: '16px',
+        cursor: 'pointer',
+      }}
+    >
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: tablet600Down ? '100%' : 'auto',
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {cong_synced && (
+            <Tooltip title={t('tr_congregationShared')}>
+              <Box sx={{ display: 'flex' }}>
+                <IconCloud />
+              </Box>
+            </Tooltip>
+          )}
+          {!cong_synced && (
+            <Tooltip title={t('tr_congregationManual')}>
+              <Box sx={{ display: 'flex' }}>
+                <IconCloudOff color="var(--grey-300)" />
+              </Box>
+            </Tooltip>
+          )}
+
+          <Typography
+            className="h4"
+            sx={{
+              color: 'var(--grey-400)',
+            }}
+          >
+            {cong_name}
+          </Typography>
+          <Typography
+            className="body-small-semibold"
+            sx={{
+              color: 'var(--grey-400)',
+              borderRadius: 'var(--radius-s)',
+              padding: '2px 8px',
+              backgroundColor: 'var(--grey-150)',
+            }}
+          >
+            {cong_number}
+          </Typography>
+        </Box>
+        {tablet600Down && (
+          <IconButton
+            aria-expanded={expanded}
+            onClick={(e) => handleActionClick(e, handleToggleExpand)}
+          >
+            <IconExpand
+              color="var(--black)"
+              sx={{
+                transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.3s',
+              }}
+            />
+          </IconButton>
+        )}
+      </Box>
+
+      {!tablet600Down && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isPublicTalkCoordinator && (
+            <Box
+              className="congregation-actions"
+              sx={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <IconButton onClick={(e) => handleActionClick(e, onDelete)}>
+                <IconDelete color="var(--red-main)" />
+              </IconButton>
+
+              <IconButton
+                onClick={(e) => handleActionClick(e, onEditModeChange)}
+              >
+                {!editMode && <IconEdit color="var(--accent-main)" />}
+                {editMode && <IconCheck color="var(--accent-main)" />}
+              </IconButton>
+            </Box>
+          )}
+
+          <IconButton
+            aria-expanded={expanded}
+            onClick={(e) => handleActionClick(e, handleToggleExpand)}
+          >
+            <IconExpand
+              color="var(--black)"
+              sx={{
+                transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.3s',
+              }}
+            />
+          </IconButton>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+export default IncomingCongregationHeader;

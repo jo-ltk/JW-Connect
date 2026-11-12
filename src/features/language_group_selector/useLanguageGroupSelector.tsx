@@ -1,0 +1,142 @@
+import { useEffect, useMemo, useRef } from 'react';
+import { useAtomValue, useSetAtom } from 'jotai';
+import { useAppTranslation, useCurrentUser } from '@hooks/index';
+import { dbAppSettingsUpdate } from '@services/dexie/settings';
+import {
+  congNameState,
+  languageGroupEnabledState,
+  userDataViewState,
+} from '@states/settings';
+import { Option } from './index.types';
+import { schedulesBuildHistoryList } from '@services/app/schedules';
+import { assignmentsHistoryState } from '@states/schedules';
+import {
+  fieldServiceGroupsState,
+  languageGroupsState,
+} from '@states/field_service_groups';
+import { refreshLocaleDerivedData } from '@services/app/locale_derived_data';
+
+const useGroupLanguageSelector = () => {
+  const { t } = useAppTranslation();
+
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  const { person } = useCurrentUser();
+
+  const setAssignmentsHistory = useSetAtom(assignmentsHistoryState);
+
+  const languageGroupEnabled = useAtomValue(languageGroupEnabledState);
+  const languageGroups = useAtomValue(languageGroupsState);
+  const fieldGroups = useAtomValue(fieldServiceGroupsState);
+  const congName = useAtomValue(congNameState);
+  const value = useAtomValue(userDataViewState);
+
+  const userInLanguageGroup = useMemo(() => {
+    return fieldGroups.some(
+      (group) =>
+        group.group_data.language_group &&
+        !group.group_data._deleted &&
+        group.group_data.members.some(
+          (member) => member.person_uid === person?.person_uid
+        )
+    );
+  }, [fieldGroups, person]);
+
+  const display = useMemo(() => {
+    if (!person) return false;
+
+    if (!languageGroupEnabled) return false;
+
+    if (!userInLanguageGroup) return false;
+
+    return languageGroups.length > 0;
+  }, [person, languageGroupEnabled, userInLanguageGroup, languageGroups]);
+
+  const options = useMemo(() => {
+    if (!display) return [];
+
+    const result: Option[] = [{ icon: 'main', value: 'main', label: congName }];
+
+    for (const group of languageGroups) {
+      result.push({
+        icon: 'group',
+        value: group.group_id,
+        label: group.group_data.name,
+      });
+    }
+
+    return result.sort((a, b) => a.label.localeCompare(b.label));
+  }, [display, congName, languageGroups]);
+
+  const renderValue = (value: string) => {
+    if (value === 'main') return t('tr_hostCongregation');
+
+    return (
+      options.find((record) => record.value === value)?.label ??
+      t('tr_hostCongregation')
+    );
+  };
+
+  const handleChange = async (dataViewNext: string) => {
+    if (dataViewNext === value) return;
+
+    await dbAppSettingsUpdate({
+      'user_settings.data_view': {
+        value: dataViewNext,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+
+    await refreshLocaleDerivedData();
+
+    // load assignment history
+    const history = schedulesBuildHistoryList();
+    setAssignmentsHistory(history);
+  };
+
+  useEffect(() => {
+    const validateDataView = async () => {
+      if (value === 'main') return;
+
+      const findGroup = languageGroups.find(
+        (record) => record.group_id === value
+      );
+
+      if (findGroup) return;
+
+      await dbAppSettingsUpdate({
+        'user_settings.data_view': {
+          value: 'main',
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    };
+
+    validateDataView();
+  }, [value, languageGroups]);
+
+  const selectWidth = useMemo(() => {
+    if (!canvasRef.current) {
+      canvasRef.current = document.createElement('canvas');
+    }
+
+    const ctx = canvasRef.current.getContext('2d');
+    if (!ctx) return 300;
+
+    ctx.font = '16px Inter, sans-serif';
+
+    const labels = [
+      t('tr_hostCongregation'),
+      ...options.map((o) => o.label),
+    ];
+
+    const maxTextWidth = Math.max(...labels.map((l) => ctx.measureText(l).width));
+
+    // 32px start adornment + 16px padding each side + 32px arrow icon
+    return Math.ceil(maxTextWidth) + 96;
+  }, [options, t]);
+
+  return { display, options, value, renderValue, handleChange, selectWidth };
+};
+
+export default useGroupLanguageSelector;

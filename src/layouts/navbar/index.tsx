@@ -1,0 +1,629 @@
+import { useState } from 'react';
+import {
+  AppBar,
+  Box,
+  Container,
+  ListItemIcon,
+  ListItemText,
+  Menu,
+  MenuItem,
+  Toolbar,
+} from '@mui/material';
+import {
+  IconAccount,
+  IconDonate,
+  IconHelp,
+  IconInfo,
+  IconLogin,
+  IconMail,
+  IconArrowLink,
+  IconLogout,
+  IconNavigateLeft,
+  IconSettings,
+} from '@icons/index';
+import { useAppTranslation, useFirebaseAuth } from '@hooks/index';
+import { APP_ENVIRONMENT, isTest } from '@constants/index';
+import { NavBarType } from './index.types';
+import useNavbar from './useNavbar';
+import AccountHeaderIcon from '@components/account_header_icon';
+import AppNotification from '@features/app_notification';
+import InstallDialog from '@features/app_install/install_dialog';
+import Button from '@components/button';
+import DemoBanner from '@features/demo/banner';
+import JwcLogo from '@features/jwc/logo';
+import LanguageSwitcher from '@features/language_switcher';
+import ThemeSwitcher from '@features/theme_switcher';
+import Typography from '@components/typography';
+import IconButton from '@components/icon_button';
+import BottomMenu from '@layouts/bottom_menu';
+
+const baseMenuStyle = {
+  padding: '8px 12px 8px 12px',
+  minHeight: '40px',
+  height: '40px',
+  gap: '8px',
+};
+
+const menuStyle = {
+  ...baseMenuStyle,
+  '&:hover': {
+    backgroundColor: 'var(--accent-100)',
+    '& p': {
+      color: 'var(--accent-main)',
+    },
+    '& svg, & svg g, & svg path, & svg rect': {
+      fill: 'var(--accent-main)',
+    },
+  },
+};
+
+const NavBar = ({ isSupported }: NavBarType) => {
+  const { t } = useAppTranslation();
+
+  const [settingsAnimating, setSettingsAnimating] = useState(false);
+
+  const { isAuthenticated } = useFirebaseAuth();
+
+  const {
+    anchorEl,
+    handleCloseMore,
+    handleOpenMoreMenu,
+    openMore,
+    handleOpenContact,
+    handleOpenAbout,
+    handleOpenSupport,
+    handleOpenDoc,
+    tabletUp,
+    tabletDown,
+    isCongAccountConnected,
+    handleOpenMyProfile,
+    handleGoDashboard,
+    isAppLoad,
+    handleReconnectAccount,
+    handleOpenRealApp,
+    handleBack,
+    accountType,
+    tablet688Up,
+    handleDisconnectAccount,
+    congName,
+    fullname,
+    navBarOptions,
+    handleQuickSettings,
+    showInstallButton,
+    handleInstallApp,
+    InstallIcon,
+    installDialogOpen,
+    handleCloseInstallDialog,
+    installGuide,
+    markLastNavBarButton,
+  } = useNavbar();
+
+  return (
+    <>
+      <AppBar
+        position="fixed"
+        sx={{
+          backgroundColor: 'var(--accent-100)',
+          borderBottom: '1px solid var(--accent-200)',
+          minHeight: '62px',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          overflow: 'hidden',
+          zIndex: (theme) => theme.zIndex.drawer + 1,
+          boxShadow: 'none',
+        }}
+      >
+        <Toolbar sx={{ padding: 0, minHeight: '62px', alignItems: 'center' }}>
+          <Container
+            maxWidth={false}
+            sx={{
+              maxWidth: '1440px',
+              padding:
+                navBarOptions.title !== null
+                  ? { mobile: '4px 16px', tablet: '6px 32px' }
+                  : { mobile: '8px 16px', tablet: '6px 32px' },
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            {!navBarOptions.title && !navBarOptions.buttons ? (
+              <>
+                <Box
+                  sx={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: { mobile: '8px', tablet: '16px' },
+                  }}
+                  onClick={handleGoDashboard}
+                >
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '2px',
+                    }}
+                  >
+                    <JwcLogo />
+                    {APP_ENVIRONMENT && (
+                      <DemoBanner environment={APP_ENVIRONMENT} />
+                    )}
+                  </Box>
+                </Box>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '2px',
+                  }}
+                >
+                  {isSupported && (
+                    <AppNotification
+                      sx={{
+                        borderRadius: 'var(--radius-max)',
+                        transition: 'background-color 0.3s',
+                        '&:hover': {
+                          backgroundColor: 'var(--accent-200)',
+                        },
+                      }}
+                    />
+                  )}
+
+                  <ThemeSwitcher
+                    sx={{
+                      height: '40px',
+                      padding: '0 8px',
+                      borderRadius: 'var(--radius-max)',
+                      cursor: 'pointer',
+                      transition: 'background-color 0.3s',
+                      '&:hover': {
+                        backgroundColor: 'var(--accent-200)',
+                        '& .MuiSwitch-track': {
+                          backgroundColor: 'var(--accent-300)',
+                          transition: 'background-color 0.3s',
+                        },
+                      },
+                      '& .MuiSwitch-track': {
+                        transition: 'background-color 0.3s',
+                      },
+                    }}
+                  />
+
+                  {tabletUp && (isAppLoad || isTest) && (
+                    <LanguageSwitcher
+                      standalone
+                      menuStyle={{
+                        ...baseMenuStyle,
+                        padding: '8px 12px 8px 12px',
+                        marginRight: '4px',
+                        transition: 'background-color 0.3s',
+                        borderRadius: 'var(--radius-max)',
+                        '&:hover': {
+                          backgroundColor: 'var(--accent-200)',
+                        },
+                        '&:focus-visible': {
+                          outline: 'var(--accent-main) auto 1px',
+                        },
+                      }}
+                    />
+                  )}
+
+                  {isSupported && (
+                    <>
+                      <Box
+                        sx={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          marginLeft: !tabletUp ? '4px' : '0px',
+                        }}
+                      >
+                        <AccountHeaderIcon
+                          handleOpenMore={handleOpenMoreMenu}
+                          isMoreOpen={openMore}
+                          sx={{ marginLeft: '2px' }}
+                        />
+                      </Box>
+
+                      <Menu
+                        disableAutoFocus={true}
+                        id="menu-language"
+                        disableScrollLock={true}
+                        anchorEl={anchorEl}
+                        open={openMore}
+                        onClose={handleCloseMore}
+                        sx={{
+                          padding: '8px 0',
+                          marginTop: '7px',
+                          '& li': {
+                            borderBottom: '1px solid var(--accent-200)',
+                          },
+                          '& li:last-child': {
+                            borderBottom: 'none',
+                          },
+                        }}
+                        slotProps={{
+                          list: {
+                            'aria-labelledby': 'basic-button',
+                          },
+                          paper: {
+                            className: 'small-card-shadow',
+                            style: {
+                              borderRadius: 'var(--radius-l)',
+                              border: '1px solid var(--accent-200)',
+                              backgroundColor: 'var(--white)',
+                              minWidth: '294px',
+                            },
+                          },
+                        }}
+                      >
+                        {(fullname || congName) && (
+                          <MenuItem
+                            disableRipple
+                            sx={{
+                              cursor: 'default',
+                              pointerEvents: 'none',
+                              flexDirection: 'column',
+                              alignItems: 'flex-start',
+                              gap: 0,
+                            }}
+                          >
+                            {fullname && (
+                              <Typography className="body-small-semibold">
+                                {fullname}
+                              </Typography>
+                            )}
+                            {congName && (
+                              <Typography
+                                className="label-small-regular"
+                                sx={{
+                                  color: 'var(--grey-350)',
+                                }}
+                              >
+                                {congName}
+                              </Typography>
+                            )}
+                          </MenuItem>
+                        )}
+
+                        {(tabletDown || (!isAppLoad && !isTest)) && (
+                          <LanguageSwitcher menuStyle={menuStyle} />
+                        )}
+
+                        {!isAppLoad && (
+                          <MenuItem
+                            disableRipple
+                            sx={menuStyle}
+                            onClick={handleOpenMyProfile}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                '&.MuiListItemIcon-root': {
+                                  width: '24px',
+                                  minWidth: '24px !important',
+                                },
+                              }}
+                            >
+                              <IconAccount color="var(--black)" />
+                            </ListItemIcon>
+                            <ListItemText>
+                              <Typography className="body-regular">
+                                {t('tr_myProfile')}
+                              </Typography>
+                            </ListItemText>
+                          </MenuItem>
+                        )}
+
+                        {showInstallButton && (
+                          <MenuItem
+                            disableRipple
+                            sx={menuStyle}
+                            onClick={handleInstallApp}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                '&.MuiListItemIcon-root': {
+                                  width: '24px',
+                                  minWidth: '24px !important',
+                                },
+                              }}
+                            >
+                              <InstallIcon color="var(--black)" />
+                            </ListItemIcon>
+                            <ListItemText>
+                              <Typography className="body-regular">
+                                {t('tr_installApp')}
+                              </Typography>
+                            </ListItemText>
+                          </MenuItem>
+                        )}
+
+                        <MenuItem
+                          disableRipple
+                          sx={menuStyle}
+                          onClick={handleOpenSupport}
+                        >
+                          <ListItemIcon
+                            sx={{
+                              '&.MuiListItemIcon-root': {
+                                width: '24px',
+                                minWidth: '24px !important',
+                              },
+                            }}
+                          >
+                            <IconDonate color="var(--black)" />
+                          </ListItemIcon>
+                          <ListItemText>
+                            <Typography className="body-regular">
+                              {t('tr_supportApp')}
+                            </Typography>
+                          </ListItemText>
+                        </MenuItem>
+
+                        <MenuItem
+                          disableRipple
+                          sx={menuStyle}
+                          onClick={handleOpenDoc}
+                        >
+                          <ListItemIcon
+                            sx={{
+                              '&.MuiListItemIcon-root': {
+                                width: '24px',
+                                minWidth: '24px !important',
+                              },
+                            }}
+                          >
+                            <IconHelp color="var(--black)" />
+                          </ListItemIcon>
+                          <ListItemText>
+                            <Typography className="body-regular">
+                              {t('tr_howToUseApp')}
+                            </Typography>
+                          </ListItemText>
+                        </MenuItem>
+
+                        {accountType === 'vip' && isCongAccountConnected && (
+                          <MenuItem
+                            disableRipple
+                            sx={menuStyle}
+                            onClick={handleOpenContact}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                '&.MuiListItemIcon-root': {
+                                  width: '24px',
+                                  minWidth: '24px !important',
+                                },
+                              }}
+                            >
+                              <IconMail color="var(--black)" />
+                            </ListItemIcon>
+                            <ListItemText>
+                              <Typography className="body-regular">
+                                {t('tr_shareFeeback')}
+                              </Typography>
+                            </ListItemText>
+                          </MenuItem>
+                        )}
+
+                        <MenuItem
+                          disableRipple
+                          sx={menuStyle}
+                          onClick={handleOpenAbout}
+                        >
+                          <ListItemIcon
+                            sx={{
+                              '&.MuiListItemIcon-root': {
+                                width: '24px',
+                                minWidth: '24px !important',
+                              },
+                            }}
+                          >
+                            <IconInfo color="var(--black)" />
+                          </ListItemIcon>
+                          <ListItemText>
+                            <Typography className="body-regular">
+                              {t('tr_about')}
+                            </Typography>
+                          </ListItemText>
+                        </MenuItem>
+
+                        {isTest && (
+                          <MenuItem
+                            disableRipple
+                            sx={{
+                              ...menuStyle,
+                              height: 'auto',
+                              paddingTop: '5px',
+                            }}
+                            onClick={handleOpenRealApp}
+                          >
+                            <Button
+                              variant="tertiary"
+                              startIcon={<IconArrowLink />}
+                              sx={{ width: '100%', marginTop: '8px' }}
+                            >
+                              {t('tr_openRealApp')}
+                            </Button>
+                          </MenuItem>
+                        )}
+
+                        {!isTest &&
+                          !isAppLoad &&
+                          !isCongAccountConnected &&
+                          accountType === 'vip' && (
+                            <MenuItem
+                              disableRipple
+                              sx={menuStyle}
+                              onClick={handleReconnectAccount}
+                            >
+                              <ListItemIcon
+                                sx={{
+                                  '&.MuiListItemIcon-root': {
+                                    width: '24px',
+                                    minWidth: '24px !important',
+                                  },
+                                }}
+                              >
+                                <IconLogin color="var(--black)" />
+                              </ListItemIcon>
+                              <ListItemText>
+                                <Typography className="body-regular">
+                                  {t('tr_reconnectAccount')}
+                                </Typography>
+                              </ListItemText>
+                            </MenuItem>
+                          )}
+
+                        {isAuthenticated && (
+                          <MenuItem
+                            disableRipple
+                            sx={menuStyle}
+                            onClick={handleDisconnectAccount}
+                          >
+                            <ListItemIcon
+                              sx={{
+                                '&.MuiListItemIcon-root': {
+                                  width: '24px',
+                                  minWidth: '24px !important',
+                                },
+                              }}
+                            >
+                              <IconLogout color="var(--black)" />
+                            </ListItemIcon>
+                            <ListItemText>
+                              <Typography className="body-regular">
+                                {t('tr_disconnectAccount')}
+                              </Typography>
+                            </ListItemText>
+                          </MenuItem>
+                        )}
+                      </Menu>
+                    </>
+                  )}
+                </Box>
+              </>
+            ) : (
+              <>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'row',
+                    gap: { mobile: '8px', tablet: '16px' },
+                    alignItems: 'center',
+                    width: !tablet688Up ? '100%' : 'auto',
+                    justifyContent: !tablet688Up ? 'space-between' : 'start',
+                  }}
+                >
+                  <IconButton
+                    className="back-arrow-button"
+                    aria-label={t('tr_back')}
+                    onClick={handleBack}
+                    sx={{
+                      '&:hover': {
+                        backgroundColor: 'var(--accent-200)',
+                      },
+                    }}
+                  >
+                    <IconNavigateLeft color="var(--black)" />
+                  </IconButton>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      marginLeft: '-8px',
+                    }}
+                  >
+                    <Typography
+                      className="h3"
+                      sx={{
+                        color: 'var(--black)',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {navBarOptions.title}
+                    </Typography>
+                    <Typography
+                      className="label-small-regular"
+                      sx={{
+                        color: 'var(--accent-400)',
+                        whiteSpace: 'nowrap',
+                        textOverflow: 'ellipsis',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {navBarOptions.secondaryTitle}
+                    </Typography>
+                  </Box>
+                  {navBarOptions.quickSettings ? (
+                    <IconButton
+                      onClick={(e) => {
+                        handleQuickSettings(e);
+                        setSettingsAnimating(true);
+                        setTimeout(() => setSettingsAnimating(false), 250);
+                      }}
+                      aria-label={t('tr_quickSettings')}
+                      sx={{
+                        marginRight: '-8px',
+                        transition: 'background-color 50ms ease-in-out',
+                        '&:hover': {
+                          backgroundColor: 'var(--accent-200)',
+                          '& svg': {
+                            transform: settingsAnimating
+                              ? 'rotate(0deg)'
+                              : 'rotate(60deg)',
+                          },
+                        },
+                        '& svg': {
+                          transition: 'transform 0.25s ease-out',
+                          ...(settingsAnimating && {
+                            transform: 'rotate(0deg)',
+                          }),
+                        },
+                      }}
+                    >
+                      <IconSettings color="var(--black)" />
+                    </IconButton>
+                  ) : (
+                    !tablet688Up && (
+                      <Box sx={{ width: '22px', height: '22px' }} />
+                    )
+                  )}
+                </Box>
+                {!!tablet688Up && navBarOptions.buttons && (
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      gap: '8px',
+                      padding: '4px',
+                      flexDirection: 'row',
+                      backgroundColor: 'var(--accent-150)',
+                      borderRadius: 'var(--radius-xl)',
+                    }}
+                  >
+                    {markLastNavBarButton(navBarOptions.buttons)}
+                  </Box>
+                )}
+              </>
+            )}
+          </Container>
+        </Toolbar>
+      </AppBar>
+      {navBarOptions.buttons && !tablet688Up && (
+        <BottomMenu buttons={markLastNavBarButton(navBarOptions.buttons)} />
+      )}
+      <InstallDialog
+        open={installDialogOpen}
+        onClose={handleCloseInstallDialog}
+        guide={installGuide}
+      />
+    </>
+  );
+};
+
+export default NavBar;

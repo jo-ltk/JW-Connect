@@ -1,0 +1,704 @@
+import { UpdateSpec } from 'dexie';
+import { dbSpeakersCongregationsCreateLocal } from './speakers_congregations';
+import { vistingSpeakerSchema } from './schema';
+import {
+  VisitingSpeakerBackupType,
+  VisitingSpeakerType,
+} from '@definition/visiting_speakers';
+import { decryptData } from '@services/encryption';
+import appDb from '@db/appDb';
+import { AssignmentCode } from '@definition/assignment';
+import { generateDisplayName } from '@utils/common';
+import { SpeakersCongregationsType } from '@definition/speakers_congregations';
+
+export const dbUpdateVisitingSpeakersMetadata = async () => {
+  const metadata = await appDb.metadata.get(1);
+
+  if (!metadata) return;
+
+  metadata.metadata.visiting_speakers = {
+    ...metadata.metadata.visiting_speakers,
+    send_local: true,
+  };
+
+  await appDb.metadata.put(metadata);
+};
+
+const dbSpeakersLocalCongregationGet = async () => {
+  const settings = await appDb.app_settings.get(1);
+  if (!settings) {
+    throw new Error('App settings not found.');
+  }
+
+  const congName = settings.cong_settings.cong_name;
+  const congregations = await appDb.speakers_congregations.toArray();
+
+  const isActiveLocalCongregation = (record: SpeakersCongregationsType) =>
+    record._deleted.value === false &&
+    record.cong_data.cong_name.value === congName;
+
+  if (!congregations.some(isActiveLocalCongregation)) {
+    await dbSpeakersCongregationsCreateLocal();
+  }
+
+  const congregationsNew = await appDb.speakers_congregations.toArray();
+
+  const congLocal = congregationsNew.find(isActiveLocalCongregation);
+
+  if (!congLocal) {
+    throw new Error('Active own congregation not found in the database.');
+  }
+
+  return congLocal;
+};
+
+export const dbVisitingSpeakersLocalCongSpeakerAdd = async (
+  local: boolean,
+  person_uid: string,
+  changes: UpdateSpec<VisitingSpeakerType>
+) => {
+  try {
+    const congLocal = await dbSpeakersLocalCongregationGet();
+
+    const congId = congLocal.id;
+    if (!congId) {
+      throw new Error(
+        'Local congregation record has no id — cannot assign speaker.cong_id.'
+      );
+    }
+
+    const newSpeaker = structuredClone(vistingSpeakerSchema);
+    newSpeaker.person_uid = person_uid;
+    newSpeaker.speaker_data.cong_id = congId;
+    newSpeaker.speaker_data.local = {
+      value: local,
+      updatedAt: new Date().toISOString(),
+    };
+
+    // one transaction, so a failed update leaves no empty speaker behind
+    await appDb.transaction('rw', appDb.visiting_speakers, async () => {
+      await appDb.visiting_speakers.put(newSpeaker);
+      await appDb.visiting_speakers.update(newSpeaker.person_uid, changes);
+    });
+
+    await dbUpdateVisitingSpeakersMetadata();
+
+    return newSpeaker.person_uid;
+  } catch (err) {
+    console.error('[DB] dbVisitingSpeakersLocalCongSpeakerAdd failed:', err);
+    throw err;
+  }
+};
+
+export const dbVisitingSpeakersDelete = async (person_uid: string) => {
+  try {
+    const speaker = await appDb.visiting_speakers.get(person_uid);
+
+    if (!speaker) {
+      throw new Error(
+        `Visiting speaker not found for person_uid: ${person_uid}`
+      );
+    }
+
+    // Idempotent: skip the write if the record is already soft-deleted
+    if (speaker._deleted.value) {
+      await dbUpdateVisitingSpeakersMetadata();
+      return;
+    }
+
+    await appDb.visiting_speakers.update(person_uid, {
+      _deleted: { value: true, updatedAt: new Date().toISOString() },
+    });
+    await dbUpdateVisitingSpeakersMetadata();
+  } catch (err) {
+    console.error('[DB] dbVisitingSpeakersDelete failed:', err);
+    throw err;
+  }
+};
+
+export const dbVisitingSpeakersUpdate = async (
+  changes: UpdateSpec<VisitingSpeakerType>,
+  person_uid: string
+) => {
+  try {
+    const speaker = changes.person_uid
+      ? await appDb.visiting_speakers.get(changes.person_uid)
+      : undefined;
+
+    if (speaker) {
+      const now = new Date().toISOString();
+
+      speaker._deleted = { value: false, updatedAt: now };
+      speaker.speaker_data.talks = [];
+
+      const temp = await appDb.visiting_speakers.get(person_uid);
+      if (!temp) {
+        throw new Error(
+          `Temp visiting speaker not found for person_uid: ${person_uid}`
+        );
+      }
+      temp._deleted = { value: true, updatedAt: now };
+
+      await appDb.transaction('rw', appDb.visiting_speakers, async () => {
+        await appDb.visiting_speakers.bulkPut([temp, speaker]);
+        await appDb.visiting_speakers.update(speaker.person_uid, changes);
+      });
+    } else {
+      await appDb.visiting_speakers.update(person_uid, changes);
+    }
+
+    await dbUpdateVisitingSpeakersMetadata();
+  } catch (err) {
+    console.error('[DB] dbVisitingSpeakersUpdate failed:', err);
+    throw err;
+  }
+};
+
+export const dbVisitingSpeakersAdd = async (
+  cong_id: string,
+  changes: UpdateSpec<VisitingSpeakerType>
+) => {
+  try {
+    const newSpeaker = structuredClone(vistingSpeakerSchema);
+    newSpeaker.person_uid = crypto.randomUUID();
+    newSpeaker.speaker_data.cong_id = cong_id;
+
+    // one transaction, so a failed update leaves no empty speaker behind
+    await appDb.transaction('rw', appDb.visiting_speakers, async () => {
+      await appDb.visiting_speakers.put(newSpeaker);
+      await appDb.visiting_speakers.update(newSpeaker.person_uid, changes);
+    });
+
+    await dbUpdateVisitingSpeakersMetadata();
+
+    return newSpeaker.person_uid;
+  } catch (err) {
+    console.error('[DB] dbVisitingSpeakersAdd failed:', err);
+    throw err;
+  }
+};
+
+export const decryptVisitingSpeakers = (
+  visiting_speakers: VisitingSpeakerBackupType[],
+  masterKey: string
+) => {
+  const result = visiting_speakers.map((speaker) => {
+    const obj = {} as VisitingSpeakerType;
+
+    obj.person_uid = JSON.parse(
+      decryptData(speaker.person_uid, masterKey, 'speaker_person_uid')
+    );
+
+    obj._deleted = JSON.parse(
+      decryptData(speaker._deleted, masterKey, 'speaker_deleted')
+    );
+
+    obj.speaker_data = JSON.parse(
+      decryptData(speaker.speaker_data, masterKey, 'speaker_data')
+    ) as VisitingSpeakerType['speaker_data'];
+
+    return obj;
+  });
+
+  return result;
+};
+
+export const dbVisitingSpeakersUpdateRemote = async (
+  newSpeakers: VisitingSpeakerType[],
+  cong_id: string
+) => {
+  const speakers = await appDb.visiting_speakers.toArray();
+
+  const oldSpeakers = speakers.filter(
+    (record) => record.speaker_data.cong_id === cong_id
+  );
+
+  for await (const speaker of newSpeakers) {
+    const speakerAdd = structuredClone(speaker);
+    speakerAdd.speaker_data.cong_id = cong_id;
+
+    await appDb.visiting_speakers.put(speakerAdd);
+    await dbUpdateVisitingSpeakersMetadata();
+  }
+
+  for await (const speaker of oldSpeakers) {
+    const findSpeaker = newSpeakers.find(
+      (record) => record.person_uid === speaker.person_uid
+    );
+
+    if (!findSpeaker) {
+      await appDb.visiting_speakers.delete(speaker.person_uid);
+      await dbUpdateVisitingSpeakersMetadata();
+    }
+  }
+};
+
+export const dbVisitingSpeakersClearRemote = async (cong_id: string) => {
+  const speakers = await appDb.visiting_speakers.toArray();
+
+  const oldSpeakers = speakers.filter(
+    (record) => record.speaker_data.cong_id === cong_id
+  );
+
+  for await (const speaker of oldSpeakers) {
+    await appDb.visiting_speakers.delete(speaker.person_uid);
+    await dbUpdateVisitingSpeakersMetadata();
+  }
+};
+
+export const dbVisitingSpeakersDummy = async () => {
+  const settings = await appDb.app_settings.get(1);
+  const congregations = await appDb.speakers_congregations.toArray();
+  const persons = await appDb.persons.toArray();
+
+  const elligiblePersons = persons.filter(
+    (record) =>
+      record.person_data.assignments
+        .at(0)
+        ?.values.includes(AssignmentCode.WM_Speaker) ?? false
+  );
+
+  // need at least two eligible WM speakers to generate dummy records
+  if (elligiblePersons.length < 2) return;
+
+  // need at least two eligible WM speakers to generate dummy records
+  if (elligiblePersons.length < 2) return;
+  // add outgoing speakers
+  const localCong = congregations.find(
+    (record) =>
+      !record._deleted.value &&
+      record.cong_data.cong_name.value === settings?.cong_settings.cong_name
+  );
+
+  if (!localCong?.id) return;
+
+  const speaker1 = structuredClone(vistingSpeakerSchema);
+  speaker1.person_uid = elligiblePersons[0]!.person_uid;
+  speaker1._deleted = { value: false, updatedAt: new Date().toISOString() };
+  speaker1.speaker_data.cong_id = localCong.id;
+  speaker1.speaker_data.talks = [
+    {
+      _deleted: false,
+      talk_number: 6,
+      talk_songs: [44, 131],
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      _deleted: false,
+      talk_number: 26,
+      talk_songs: [20, 34, 99],
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      _deleted: false,
+      talk_number: 48,
+      talk_songs: [57, 89],
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      _deleted: false,
+      talk_number: 102,
+      talk_songs: [15, 72],
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      _deleted: false,
+      talk_number: 135,
+      talk_songs: [3, 110],
+      updatedAt: new Date().toISOString(),
+    },
+  ];
+
+  const speaker2 = structuredClone(vistingSpeakerSchema);
+  speaker2.person_uid = elligiblePersons[1]!.person_uid;
+  speaker2._deleted = { value: false, updatedAt: new Date().toISOString() };
+  speaker2.speaker_data.cong_id = localCong.id;
+  speaker2.speaker_data.talks = [
+    {
+      _deleted: false,
+      talk_number: 36,
+      talk_songs: [1, 144],
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      _deleted: false,
+      talk_number: 150,
+      talk_songs: [45, 120],
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      _deleted: false,
+      talk_number: 71,
+      talk_songs: [28, 95],
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      _deleted: false,
+      talk_number: 118,
+      talk_songs: [62, 140],
+      updatedAt: new Date().toISOString(),
+    },
+  ];
+
+  await appDb.visiting_speakers.bulkAdd([speaker1, speaker2]);
+
+  const incomingCongs = congregations.filter(
+    (record) =>
+      !record._deleted.value &&
+      record.cong_data.cong_name.value !== settings?.cong_settings.cong_name
+  );
+
+  if (incomingCongs.length < 2) return;
+
+  const incomingCong0 = incomingCongs[0]!;
+  const incomingCong1 = incomingCongs[1]!;
+
+  if (!incomingCong0.id || !incomingCong1.id) return;
+
+  const speaker1Cong1 = structuredClone(vistingSpeakerSchema);
+  speaker1Cong1.person_uid = crypto.randomUUID();
+  speaker1Cong1._deleted = {
+    value: false,
+    updatedAt: new Date().toISOString(),
+  };
+  speaker1Cong1.speaker_data = {
+    cong_id: incomingCong0.id,
+    elder: { value: true, updatedAt: new Date().toISOString() },
+    ministerial_servant: {
+      value: false,
+      updatedAt: new Date().toISOString(),
+    },
+    person_firstname: {
+      value: 'Ribeiro',
+      updatedAt: new Date().toISOString(),
+    },
+    person_lastname: {
+      value: 'Gonzaga',
+      updatedAt: new Date().toISOString(),
+    },
+    person_display_name: {
+      value: generateDisplayName('Gonzaga', 'Ribeiro'),
+      updatedAt: new Date().toISOString(),
+    },
+    person_email: {
+      value: 'ribeiro-gonzaga@fakemail.com',
+      updatedAt: new Date().toISOString(),
+    },
+    person_notes: { value: '', updatedAt: new Date().toISOString() },
+    person_phone: {
+      value: '+61 929-572-140',
+      updatedAt: new Date().toISOString(),
+    },
+    local: { value: false, updatedAt: new Date().toISOString() },
+    talks: [
+      {
+        _deleted: false,
+        talk_number: 40,
+        talk_songs: [8, 16],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 77,
+        talk_songs: [20, 34, 99],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 12,
+        talk_songs: [53, 107],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 163,
+        talk_songs: [31, 88],
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  };
+
+  const speaker2Cong1 = structuredClone(vistingSpeakerSchema);
+  speaker2Cong1.person_uid = crypto.randomUUID();
+  speaker2Cong1._deleted = {
+    value: false,
+    updatedAt: new Date().toISOString(),
+  };
+  speaker2Cong1.speaker_data = {
+    cong_id: incomingCong0.id,
+    elder: { value: false, updatedAt: new Date().toISOString() },
+    ministerial_servant: { value: true, updatedAt: new Date().toISOString() },
+    person_firstname: {
+      value: 'Konsta',
+      updatedAt: new Date().toISOString(),
+    },
+    person_lastname: {
+      value: 'Manninen',
+      updatedAt: new Date().toISOString(),
+    },
+    person_display_name: {
+      value: generateDisplayName('Manninen', 'Konsta'),
+      updatedAt: new Date().toISOString(),
+    },
+    person_email: {
+      value: 'konsta-manninen@fakemail.com',
+      updatedAt: new Date().toISOString(),
+    },
+    person_notes: {
+      value: 'Note about speaker',
+      updatedAt: new Date().toISOString(),
+    },
+    person_phone: {
+      value: '+92 378-326-3439',
+      updatedAt: new Date().toISOString(),
+    },
+    local: { value: false, updatedAt: new Date().toISOString() },
+    talks: [
+      {
+        _deleted: false,
+        talk_number: 52,
+        talk_songs: [123, 151],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 85,
+        talk_songs: [11, 38],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 141,
+        talk_songs: [67, 133],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 29,
+        talk_songs: [5, 78],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 174,
+        talk_songs: [42, 114],
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  };
+
+  const speaker1Cong2 = structuredClone(vistingSpeakerSchema);
+  speaker1Cong2.person_uid = crypto.randomUUID();
+  speaker1Cong2._deleted = {
+    value: false,
+    updatedAt: new Date().toISOString(),
+  };
+  speaker1Cong2.speaker_data = {
+    cong_id: incomingCong1.id,
+    elder: { value: true, updatedAt: new Date().toISOString() },
+    ministerial_servant: {
+      value: false,
+      updatedAt: new Date().toISOString(),
+    },
+    person_firstname: {
+      value: 'Gary',
+      updatedAt: new Date().toISOString(),
+    },
+    person_lastname: {
+      value: 'Simpson',
+      updatedAt: new Date().toISOString(),
+    },
+    person_display_name: {
+      value: generateDisplayName('Simpson', 'Gary'),
+      updatedAt: new Date().toISOString(),
+    },
+    person_email: {
+      value: 'gary-simpson@fakemail.com',
+      updatedAt: new Date().toISOString(),
+    },
+    person_notes: { value: '', updatedAt: new Date().toISOString() },
+    person_phone: {
+      value: '+61 929-572-140',
+      updatedAt: new Date().toISOString(),
+    },
+    local: { value: false, updatedAt: new Date().toISOString() },
+    talks: [
+      {
+        _deleted: false,
+        talk_number: 40,
+        talk_songs: [8, 16],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 77,
+        talk_songs: [20, 34, 99],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 94,
+        talk_songs: [19, 75],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 156,
+        talk_songs: [36, 101],
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  };
+
+  const speaker2Cong2 = structuredClone(vistingSpeakerSchema);
+  speaker2Cong2.person_uid = crypto.randomUUID();
+  speaker2Cong2._deleted = {
+    value: false,
+    updatedAt: new Date().toISOString(),
+  };
+  speaker2Cong2.speaker_data = {
+    cong_id: incomingCong1.id,
+    elder: { value: false, updatedAt: new Date().toISOString() },
+    ministerial_servant: { value: true, updatedAt: new Date().toISOString() },
+    person_firstname: {
+      value: 'Sylas',
+      updatedAt: new Date().toISOString(),
+    },
+    person_lastname: {
+      value: 'Holmes',
+      updatedAt: new Date().toISOString(),
+    },
+    person_display_name: {
+      value: generateDisplayName('Holmes', 'Sylas'),
+      updatedAt: new Date().toISOString(),
+    },
+    person_email: {
+      value: 'sylas-holmes@fakemail.com',
+      updatedAt: new Date().toISOString(),
+    },
+    person_notes: {
+      value: 'Note about speaker',
+      updatedAt: new Date().toISOString(),
+    },
+    person_phone: {
+      value: '+92 378-326-3439',
+      updatedAt: new Date().toISOString(),
+    },
+    local: { value: false, updatedAt: new Date().toISOString() },
+    talks: [
+      {
+        _deleted: false,
+        talk_number: 52,
+        talk_songs: [123, 151],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 85,
+        talk_songs: [11, 38],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 110,
+        talk_songs: [24, 92],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 183,
+        talk_songs: [7, 58],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 64,
+        talk_songs: [41, 126],
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  };
+
+  const speaker3Cong2 = structuredClone(vistingSpeakerSchema);
+  speaker3Cong2.person_uid = crypto.randomUUID();
+  speaker3Cong2._deleted = {
+    value: false,
+    updatedAt: new Date().toISOString(),
+  };
+  speaker3Cong2.speaker_data = {
+    cong_id: incomingCong1.id,
+    elder: { value: true, updatedAt: new Date().toISOString() },
+    ministerial_servant: {
+      value: false,
+      updatedAt: new Date().toISOString(),
+    },
+    person_firstname: {
+      value: 'Derek',
+      updatedAt: new Date().toISOString(),
+    },
+    person_lastname: {
+      value: 'Whitman',
+      updatedAt: new Date().toISOString(),
+    },
+    person_display_name: {
+      value: generateDisplayName('Whitman', 'Derek'),
+      updatedAt: new Date().toISOString(),
+    },
+    person_email: {
+      value: 'derek-whitman@fakemail.com',
+      updatedAt: new Date().toISOString(),
+    },
+    person_notes: { value: '', updatedAt: new Date().toISOString() },
+    person_phone: {
+      value: '+44 652-804-3319',
+      updatedAt: new Date().toISOString(),
+    },
+    local: { value: false, updatedAt: new Date().toISOString() },
+    talks: [
+      {
+        _deleted: false,
+        talk_number: 18,
+        talk_songs: [13, 69],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 130,
+        talk_songs: [50, 117],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 75,
+        talk_songs: [33, 91],
+        updatedAt: new Date().toISOString(),
+      },
+      {
+        _deleted: false,
+        talk_number: 188,
+        talk_songs: [2, 146],
+        updatedAt: new Date().toISOString(),
+      },
+    ],
+  };
+
+  await appDb.visiting_speakers.bulkAdd([
+    speaker1Cong1,
+    speaker2Cong1,
+    speaker1Cong2,
+    speaker2Cong2,
+    speaker3Cong2,
+  ]);
+};
+
+export const dbVisitingSpeakersClear = async () => {
+  const records = await appDb.visiting_speakers.toArray();
+
+  if (records.length === 0) return;
+
+  for (const record of records) {
+    record._deleted = { value: true, updatedAt: new Date().toISOString() };
+  }
+
+  await appDb.visiting_speakers.bulkPut(records);
+};

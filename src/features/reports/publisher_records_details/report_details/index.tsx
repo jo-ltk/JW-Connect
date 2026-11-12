@@ -1,0 +1,85 @@
+import { Stack } from '@mui/material';
+import { useAppTranslation } from '@hooks/index';
+import { ReportDetailsProps } from './index.types';
+import useReportDetails from './useReportDetails';
+import BibleStudies from './bible_studies';
+import Comments from './comments';
+import CreditField from './credit_field';
+import Dialog from '@components/dialog';
+import DialogActions from '@components/dialog_actions';
+import Divider from '@components/divider';
+import Button from '@components/button';
+import HoursField from './hours_field';
+import LateReport from './late_report';
+import MinistryShared from './ministry_shared';
+import { IconAuxiliaryPioneer } from '@components/icons';
+
+const ReportDetails = (props: ReportDetailsProps) => {
+  const { t } = useAppTranslation();
+
+  const {
+    reportMonth,
+    hoursEnabled,
+    creditEnabled,
+    handleSaveReport,
+    enable_quick_AP,
+    handleAssignAP,
+  } = useReportDetails(props);
+
+  return (
+    <Dialog
+      open={props.open}
+      onClose={props.onClose}
+      title={`${t('tr_fieldReportEdit')} (${reportMonth})`}
+    >
+      <Stack
+        spacing="8px"
+        sx={{
+          width: '100%',
+        }}
+      >
+        <LateReport />
+
+        <Stack spacing="24px" divider={<Divider color="var(--accent-200)" />}>
+          {hoursEnabled && (
+            <Stack
+              spacing="24px"
+              divider={<Divider dashed color="var(--accent-200)" />}
+            >
+              <HoursField />
+
+              {creditEnabled && <CreditField />}
+            </Stack>
+          )}
+
+          {!hoursEnabled && <MinistryShared />}
+
+          <BibleStudies />
+        </Stack>
+      </Stack>
+
+      <Comments />
+
+      <DialogActions>
+        {enable_quick_AP && (
+          <Button
+            variant="tertiary"
+            startIcon={<IconAuxiliaryPioneer />}
+            onClick={handleAssignAP}
+          >
+            {t('tr_assignAuxPioBtn')}
+          </Button>
+        )}
+
+        <Button variant="secondary" onClick={props.onClose}>
+          {t('tr_cancel')}
+        </Button>
+        <Button variant="main" onClick={handleSaveReport}>
+          {t('tr_save')}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default ReportDetails;

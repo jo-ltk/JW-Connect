@@ -1,0 +1,165 @@
+import {
+  Fragment,
+  ReactNode,
+  SyntheticEvent,
+  useEffect,
+  useState,
+} from 'react';
+import { Box, Tab, Tabs, tabsClasses } from '@mui/material';
+import { useBreakpoints } from '@hooks/index';
+import { CustomTabPanel } from '@components/tabs';
+import { CustomTabProps } from '@components/tabs/index.types';
+import { tabsSharedStyles } from '@components/tabs/index.styles';
+import TabLabel from '@components/tabs/tab_label';
+import ArrowBackIosIcon from '@mui/icons-material/ArrowBackIos';
+import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import Typography from '@components/typography';
+
+const TAB_HEIGHT = '48px';
+
+/**
+ * Component that renders scrollable tabs.
+ *
+ */
+function ScrollableTabs({
+  tabs,
+  value,
+  onChange,
+  className,
+  layout = 'auto',
+  appearance = 'chip',
+  sx,
+}: CustomTabProps) {
+  const { tabletDown, tabletUp } = useBreakpoints();
+
+  const variant = layout === 'stretch' && tabletUp ? 'fullWidth' : 'scrollable';
+
+  const hasIndicator = appearance === 'plain';
+
+  const [valueOfActivePanel, setValueOfActivePanel] = useState(value ?? false);
+
+  /**
+   * Handles tab change event.
+   *
+   * @param event The event object.
+   * @param newValue The new value of the active tab.
+   */
+  const handleChange = (event: SyntheticEvent, newValue: number) => {
+    if (!hasIndicator) {
+      event.preventDefault();
+    }
+
+    setValueOfActivePanel(newValue);
+    onChange?.(newValue);
+  };
+
+  useEffect(() => {
+    setValueOfActivePanel(value ?? false);
+  }, [value]);
+
+  return (
+    <Box sx={{ width: '100%', minHeight: tabs.length > 0 && '45px' }}>
+      {tabs.length === 0 && (
+        <Typography
+          className="body-small-semibold"
+          sx={{
+            color: 'var(--red-main)',
+          }}
+        >
+          TAB_DATA_EMPTY
+        </Typography>
+      )}
+
+      {tabs.length > 0 && (
+        <Box>
+          <Tabs
+            value={valueOfActivePanel}
+            onChange={handleChange}
+            variant={variant}
+            scrollButtons={tabletDown ? false : 'auto'}
+            className={className}
+            slotProps={{
+              indicator: {
+                hidden: !hasIndicator,
+                sx: {
+                  backgroundColor: hasIndicator
+                    ? 'var(--accent-main)'
+                    : 'transparent',
+                  borderRadius: hasIndicator ? '16px 16px 0px 0px' : 'unset',
+                  height: '4px',
+                },
+              },
+            }}
+            slots={{
+              endScrollButtonIcon: ArrowForwardIosIcon,
+              startScrollButtonIcon: ArrowBackIosIcon,
+            }}
+            aria-label="scrollable-auto-tabs"
+            sx={[
+              {
+                [`& .${tabsClasses.scrollButtons}`]: {
+                  color: 'var(--accent-main)',
+                  '&.Mui-disabled': { opacity: 0.3 },
+                },
+                '& .MuiSvgIcon-root g path': {
+                  fill: 'var(--accent-400)',
+                },
+                '& .Mui-selected > .MuiSvgIcon-root g path': {
+                  fill: 'var(--accent-dark)',
+                },
+                '& .MuiTabScrollButton-root': {
+                  width: 'auto !important',
+                  height: '36px',
+                },
+                alignItems: 'center',
+                minHeight: TAB_HEIGHT,
+                [`& .${tabsClasses.list}`]: {
+                  gap: '4px',
+                },
+              },
+              tabsSharedStyles(appearance),
+              ...(Array.isArray(sx) ? sx : [sx]),
+            ]}
+          >
+            {tabs.map(
+              ({ label, badge, icon, className }, index): ReactNode => (
+                <Tab
+                  label={
+                    <TabLabel
+                      label={label}
+                      badge={badge}
+                      selected={valueOfActivePanel === index}
+                    />
+                  }
+                  key={index}
+                  className={className}
+                  icon={icon}
+                  iconPosition="end"
+                  sx={{
+                    minHeight: TAB_HEIGHT,
+                    height: TAB_HEIGHT,
+                    minWidth: '20px',
+                  }}
+                />
+              )
+            )}
+          </Tabs>
+        </Box>
+      )}
+
+      {tabs.map(
+        (tab, i: number): ReactNode => (
+          <Fragment key={i}>
+            {tab.Component && (
+              <CustomTabPanel value={valueOfActivePanel} index={i}>
+                {tab.Component}
+              </CustomTabPanel>
+            )}
+          </Fragment>
+        )
+      )}
+    </Box>
+  );
+}
+
+export default ScrollableTabs;

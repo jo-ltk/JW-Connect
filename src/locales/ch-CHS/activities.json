@@ -1,0 +1,11 @@
+{
+  "tr_addNewDate": "添加新日期",
+  "tr_deepCleaning": "彻底清洁",
+  "tr_noCleaningSchedulesYet": "目前还没有清洁安排。请添加一个新的月份，开始建立第一个清洁安排。",
+  "tr_addMonthDesc": "首先选择要安排的月份，然后为每个聚会日期建立清洁安排。",
+  "tr_responsiblePerson": "负责人",
+  "tr_deleteDate": "删除日期",
+  "tr_deleteDateDecs": "这个操作无法撤销，但你随时可以重新添加日期。",
+  "tr_deleteMonth": "删除这个月份",
+  "tr_deleteMonthDesc": "这个操作无法撤销，但你随时可以重新添加月份。"
+}

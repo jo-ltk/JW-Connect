@@ -1,0 +1,75 @@
+import { Box, Stack } from '@mui/material';
+import IconLoading from '@components/icon_loading';
+import { useAppTranslation } from '@hooks/index';
+import { SchedulePublishProps } from './index.types';
+import useSchedulePublish from './useSchedulePublish';
+import Button from '@components/button';
+import Dialog from '@components/dialog';
+import DialogActions from '@components/dialog_actions';
+import Divider from '@components/divider';
+import Typography from '@components/typography';
+import YearContainer from './year_container';
+
+const SchedulePublish = (props: SchedulePublishProps) => {
+  const { t } = useAppTranslation();
+
+  const {
+    schedulesList,
+    handleCheckedChange,
+    handlePublishSchedule,
+    isProcessing,
+  } = useSchedulePublish(props);
+
+  return (
+    <Dialog
+      onClose={props.onClose}
+      open={props.open}
+      header={
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <Typography className="h2">{t('tr_publishSchedules')}</Typography>
+          <Typography
+            sx={{
+              color: 'var(--grey-400)',
+            }}
+          >
+            {t('tr_publishSchedulesDesc')}
+          </Typography>
+        </Box>
+      }
+      actions={
+        <DialogActions>
+          <Button variant="secondary" onClick={props.onClose}>
+            {t('tr_cancel')}
+          </Button>
+          <Button
+            variant="main"
+            disabled={isProcessing}
+            onClick={handlePublishSchedule}
+            endIcon={isProcessing && <IconLoading />}
+          >
+            {t('tr_publish')}
+          </Button>
+        </DialogActions>
+      }
+    >
+      <Stack
+        direction="row"
+        spacing="24px"
+        divider={
+          <Divider orientation="vertical" color="var(--accent-200)" flexItem />
+        }
+        sx={{ width: '100%', overflow: 'auto' }}
+      >
+        {schedulesList.map((schedule) => (
+          <YearContainer
+            key={schedule.year}
+            data={schedule}
+            onChange={handleCheckedChange}
+          />
+        ))}
+      </Stack>
+    </Dialog>
+  );
+};
+
+export default SchedulePublish;

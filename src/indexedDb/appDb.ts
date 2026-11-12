@@ -1,0 +1,290 @@
+import BaseDexie from 'dexie';
+import { settingSchema } from '@services/dexie/schema';
+import { MeetingAttendanceType } from '@definition/meeting_attendance';
+import { meetingAttendanceSplitDeaf } from '@utils/meeting_attendance';
+import { PersonsTable, personsSchema } from './tables/persons';
+import { SettingsTable, settingsSchema } from './tables/settings';
+import { SourcesTable, sourcesSchema } from './tables/sources';
+import { AssignmentTable, assignmentSchema } from './tables/assignment';
+import { WeekTypeTable, weekTypeSchema } from './tables/weekType';
+import { SchedTable, schedSchema } from './tables/sched';
+import {
+  FieldServiceGroupsTable,
+  fieldServiceGroupsSchema,
+} from './tables/field_service_groups';
+import {
+  VisitingSpeakersTable,
+  visitingSpeakersSchema,
+} from './tables/visiting_speakers';
+import {
+  UserBibleStudiesTable,
+  userBibleStudiesSchema,
+} from './tables/user_bible_studies';
+import {
+  UserFieldServiceReportsTable,
+  userFieldServiceReportsSchema,
+} from './tables/user_field_service_reports';
+import {
+  CongFieldServiceReportsTable,
+  congFieldServiceReportsSchema,
+} from './tables/cong_field_service_reports';
+import {
+  BranchFieldServiceReportsTable,
+  branchFieldServiceReportsSchema,
+} from './tables/branch_field_service_reports';
+import {
+  BranchCongAnalysisTable,
+  branchCongAnalysisSchema,
+} from './tables/branch_cong_analysis';
+import {
+  MeetingAttendanceTable,
+  meetingAttendanceSchema,
+} from './tables/meeting_attendance';
+import {
+  SpeakersCongregationsTable,
+  speakersCongregationsSchema,
+} from './tables/speakers_congregations';
+import { notificationSchema, NotificationTable } from './tables/notifications';
+import { MetadataTable, metadataSchema } from './tables/metadata';
+import {
+  delegatedFieldServiceReportsSchema,
+  DelegatedFieldServiceReportsTable,
+} from './tables/delegated_field_service_reports';
+import { SettingsType } from '@definition/settings';
+import { LANGUAGE_LIST } from '@constants/index';
+import {
+  upcomingEventsSchema,
+  UpcomingEventsTable,
+} from './tables/upcoming_events';
+import { publicTalkSchema, PublicTalkTable } from './tables/public_talk';
+import { songSchema, SongTable } from './tables/songs';
+import { appLocalsSchema, AppLocalsTable } from './tables/app_locals';
+import { dutiesSchema, DutiesTable } from './tables/duties';
+
+type DexieTables = PersonsTable &
+  SettingsTable &
+  SourcesTable &
+  AssignmentTable &
+  WeekTypeTable &
+  SchedTable &
+  FieldServiceGroupsTable &
+  VisitingSpeakersTable &
+  UserBibleStudiesTable &
+  UserFieldServiceReportsTable &
+  CongFieldServiceReportsTable &
+  BranchFieldServiceReportsTable &
+  BranchCongAnalysisTable &
+  MeetingAttendanceTable &
+  SpeakersCongregationsTable &
+  NotificationTable &
+  UpcomingEventsTable &
+  MetadataTable &
+  DelegatedFieldServiceReportsTable &
+  PublicTalkTable &
+  SongTable &
+  AppLocalsTable &
+  DutiesTable;
+
+type Dexie<T = DexieTables> = BaseDexie & T;
+
+const appDb = new BaseDexie('organized') as Dexie;
+
+const schema = {
+  ...personsSchema,
+  ...settingsSchema,
+  ...sourcesSchema,
+  ...assignmentSchema,
+  ...weekTypeSchema,
+  ...schedSchema,
+  ...fieldServiceGroupsSchema,
+  ...visitingSpeakersSchema,
+  ...userBibleStudiesSchema,
+  ...userFieldServiceReportsSchema,
+  ...congFieldServiceReportsSchema,
+  ...branchFieldServiceReportsSchema,
+  ...branchCongAnalysisSchema,
+  ...meetingAttendanceSchema,
+  ...speakersCongregationsSchema,
+  ...notificationSchema,
+};
+
+appDb
+  .version(5)
+  .stores(schema)
+  .upgrade(async (prevDb) => {
+    const oldSettings = (await prevDb
+      .table('app_settings')
+      .get(1)) as SettingsType;
+
+    const sourceAutoImport = oldSettings.cong_settings[
+      'source_material_auto_import'
+    ] as SettingsType['cong_settings']['source_material']['auto_import'];
+
+    if (sourceAutoImport) {
+      const lang = localStorage.getItem('ui_lang');
+      const jwLang =
+        LANGUAGE_LIST.find((record) => record.locale === lang)?.code || 'E';
+
+      const settings = structuredClone(oldSettings);
+
+      settings.cong_settings.source_material = {
+        auto_import: sourceAutoImport,
+        language: [
+          {
+            type: 'main',
+            value: jwLang.toUpperCase(),
+            updatedAt: new Date().toISOString(),
+            _deleted: false,
+          },
+        ],
+      };
+
+      delete settings.cong_settings['source_material_auto_import'];
+
+      await prevDb.table('app_settings').put(settings);
+    }
+  });
+
+appDb.version(6).stores(schema);
+
+appDb.version(7).stores({ ...schema, ...metadataSchema });
+
+appDb.version(8).stores({
+  ...schema,
+  ...metadataSchema,
+  ...delegatedFieldServiceReportsSchema,
+});
+
+appDb.version(9).stores({
+  ...schema,
+  ...metadataSchema,
+  ...delegatedFieldServiceReportsSchema,
+  ...upcomingEventsSchema,
+});
+
+appDb.version(10).stores({
+  ...schema,
+  ...metadataSchema,
+  ...delegatedFieldServiceReportsSchema,
+  ...weekTypeSchema,
+});
+
+appDb.version(11).stores({
+  ...schema,
+  ...metadataSchema,
+  ...delegatedFieldServiceReportsSchema,
+  ...weekTypeSchema,
+  ...publicTalkSchema,
+  ...songSchema,
+});
+
+appDb.version(12).stores({
+  ...schema,
+  ...metadataSchema,
+  ...delegatedFieldServiceReportsSchema,
+  ...weekTypeSchema,
+  ...publicTalkSchema,
+  ...songSchema,
+  ...upcomingEventsSchema,
+});
+
+appDb
+  .version(13)
+  .stores({
+    ...schema,
+    ...metadataSchema,
+    ...delegatedFieldServiceReportsSchema,
+    ...weekTypeSchema,
+    ...publicTalkSchema,
+    ...songSchema,
+    ...upcomingEventsSchema,
+  })
+  .upgrade(async (tx) => {
+    // congregation reports were dropped on restore for elders and group
+    // overseers while their version kept advancing: clear it once so the
+    // next sync pulls the reports they never received
+    const record = await tx.table('metadata').get(1);
+
+    if (!record?.metadata?.cong_field_service_reports) return;
+
+    record.metadata.cong_field_service_reports.version = '';
+
+    await tx.table('metadata').put(record);
+  });
+
+appDb
+  .version(14)
+  .stores({
+    ...schema,
+    ...metadataSchema,
+    ...delegatedFieldServiceReportsSchema,
+    ...weekTypeSchema,
+    ...publicTalkSchema,
+    ...songSchema,
+    ...upcomingEventsSchema,
+    ...appLocalsSchema,
+  })
+  .upgrade(async (tx) => {
+    // the account photo used to live inside the settings row, which made
+    // IndexedDB panels freeze and bloated restores: move it to its own table
+    // for local-only device data and drop it from the settings record
+    const settings = await tx.table('app_settings').get(1);
+
+    if (!settings || !('user_avatar' in settings.user_settings)) return;
+
+    if (settings.user_settings.user_avatar) {
+      await tx.table('app_locals').put({
+        id: 1,
+        avatar: settings.user_settings.user_avatar,
+      });
+    }
+
+    const newSettings = structuredClone(settings);
+
+    delete newSettings.user_settings.user_avatar;
+
+    await tx.table('app_settings').put(newSettings);
+  });
+
+appDb
+  .version(15)
+  .stores({
+    ...schema,
+    ...metadataSchema,
+    ...delegatedFieldServiceReportsSchema,
+    ...weekTypeSchema,
+    ...publicTalkSchema,
+    ...songSchema,
+    ...upcomingEventsSchema,
+    ...appLocalsSchema,
+  })
+  .upgrade(async (tx) => {
+    // present and online used to include the deaf count: keep the hearing count
+    // only. updatedAt stays as it was, so a device converting an outdated
+    // record cannot push it over a newer edit made elsewhere; records still in
+    // the old format are converted again whenever they arrive from sync
+    await tx
+      .table('meeting_attendance')
+      .toCollection()
+      .modify((attendance: MeetingAttendanceType) => {
+        meetingAttendanceSplitDeaf(attendance);
+      });
+  });
+
+appDb.version(16).stores({
+  ...schema,
+  ...metadataSchema,
+  ...delegatedFieldServiceReportsSchema,
+  ...weekTypeSchema,
+  ...publicTalkSchema,
+  ...songSchema,
+  ...upcomingEventsSchema,
+  ...appLocalsSchema,
+  ...dutiesSchema,
+});
+
+appDb.on('populate', function () {
+  appDb.app_settings.add(settingSchema);
+});
+
+export default appDb;

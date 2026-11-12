@@ -1,0 +1,139 @@
+import { Stack } from '@mui/material';
+import { WEEKEND_WITH_WTSTUDY } from '@constants/index';
+import { Week } from '@definition/week_type';
+import {
+  DoubleFieldContainer,
+  PrimaryFieldContainer,
+  SecondaryFieldContainer,
+} from '../shared_styles';
+import { useAppTranslation, useBreakpoints } from '@hooks/index';
+import { WeekendMeetingProps } from './index.types';
+import useWeekendMeeting from './useWeekendMeeting';
+import MeetingSectionBadges from '../meeting_section_badges';
+import PartTiming from '../part_timing';
+import PersonComponent from '../person_component';
+import SongSource from '@features/meetings/song_source';
+import Typography from '@components/typography';
+import ServiceTalk from './service_talk';
+import PublicTalk from './public_talk';
+import WatchtowerStudy from './watchtower_study';
+
+const WeekendMeeting = (props: WeekendMeetingProps) => {
+  const { t } = useAppTranslation();
+
+  const { laptopUp, tabletUp } = useBreakpoints();
+
+  const {
+    week,
+    myAssignmentsTotal,
+    noMeetingInfo,
+    openingPrayerAuto,
+    partTimings,
+    weekType,
+    weekDateLocale,
+    showChairman,
+  } = useWeekendMeeting(props);
+
+  return (
+    <Stack spacing="8px">
+      <DoubleFieldContainer sx={{ flexDirection: laptopUp ? 'row' : 'column' }}>
+        <PrimaryFieldContainer
+          sx={{
+            display: 'flex',
+            alignItems: tabletUp ? 'center' : 'unset',
+            gap: tabletUp ? '16px' : '4px',
+            flexDirection: tabletUp ? 'row' : 'column',
+            flexWrap: 'wrap',
+          }}
+        >
+          <Typography className="h2">{weekDateLocale}</Typography>
+
+          <MeetingSectionBadges
+            myAssignmentsTotal={myAssignmentsTotal}
+            lastUpdated={props.lastUpdated}
+            weekType={weekType}
+          />
+        </PrimaryFieldContainer>
+
+        {!noMeetingInfo.value && (
+          <SecondaryFieldContainer
+            sx={{ maxWidth: laptopUp ? '360px' : '100%' }}
+          >
+            {showChairman && (
+              <PersonComponent
+                label={`${t('tr_chairman')}:`}
+                week={week}
+                assignment="WM_Chairman"
+                dataView={props.dataView}
+              />
+            )}
+          </SecondaryFieldContainer>
+        )}
+      </DoubleFieldContainer>
+
+      {noMeetingInfo.value && <Typography>{noMeetingInfo.event}</Typography>}
+
+      {!noMeetingInfo.value && (
+        <>
+          {showChairman && (
+            <>
+              <DoubleFieldContainer
+                sx={{ flexDirection: laptopUp ? 'row' : 'column' }}
+              >
+                <PrimaryFieldContainer>
+                  {partTimings?.pgm_start && (
+                    <PartTiming time={partTimings.pgm_start} />
+                  )}
+
+                  <SongSource
+                    meeting="weekend"
+                    week={week}
+                    type="opening"
+                    dataView={props.dataView}
+                  />
+                </PrimaryFieldContainer>
+                <SecondaryFieldContainer
+                  sx={{ maxWidth: laptopUp ? '360px' : '100%' }}
+                >
+                  {!openingPrayerAuto && (
+                    <PersonComponent
+                      label={`${t('tr_prayer')}:`}
+                      week={week}
+                      assignment="WM_OpeningPrayer"
+                      dataView={props.dataView}
+                    />
+                  )}
+                </SecondaryFieldContainer>
+              </DoubleFieldContainer>
+
+              <PublicTalk
+                week={week}
+                week_type={weekType}
+                timings={partTimings}
+                dataView={props.dataView}
+              />
+            </>
+          )}
+
+          {WEEKEND_WITH_WTSTUDY.includes(weekType) && (
+            <WatchtowerStudy
+              week={week}
+              timings={partTimings}
+              dataView={props.dataView}
+            />
+          )}
+
+          {weekType === Week.CO_VISIT && (
+            <ServiceTalk
+              week={week}
+              timings={partTimings}
+              dataView={props.dataView}
+            />
+          )}
+        </>
+      )}
+    </Stack>
+  );
+};
+
+export default WeekendMeeting;

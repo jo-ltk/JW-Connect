@@ -1,0 +1,197 @@
+import { Box, Stack } from '@mui/material';
+import {
+  DoubleFieldContainer,
+  PrimaryFieldContainer,
+  SecondaryFieldContainer,
+} from '../shared_styles';
+import { useAppTranslation, useBreakpoints } from '@hooks/index';
+import useMidweekMeeting from './useMidweekMeeting';
+import MeetingSectionBadges from '../meeting_section_badges';
+import AuxClassGroup from './aux_class_group';
+import LivingPart from './living_part';
+import MinistryPart from './ministry_part';
+import PersonComponent from '../person_component';
+import PartTiming from '../part_timing';
+import SongSource from '@features/meetings/song_source';
+import TreasuresPart from './treasures_part';
+import Typography from '@components/typography';
+import WeekHeader from '@features/meetings/midweek_editor/week_header';
+import {
+  MIDWEEK_FULL,
+  MIDWEEK_WITH_LIVING,
+  MIDWEEK_WITH_STUDENTS,
+  MIDWEEK_WITH_TREASURES,
+} from '@constants/index';
+import { MidweekMeetingProps } from './index.types';
+
+const MidweekMeeting = (props: MidweekMeetingProps) => {
+  const { t } = useAppTranslation();
+
+  const { laptopUp, tabletUp } = useBreakpoints();
+
+  const {
+    week,
+    showAuxCounselor,
+    weekType,
+    noMeetingInfo,
+    myAssignmentsTotal,
+    partTimings,
+    openingPrayerLinked,
+  } = useMidweekMeeting(props);
+
+  return (
+    <Stack spacing="8px">
+      <DoubleFieldContainer sx={{ flexDirection: laptopUp ? 'row' : 'column' }}>
+        <PrimaryFieldContainer
+          sx={{
+            display: 'flex',
+            alignItems: tabletUp ? 'center' : 'unset',
+            gap: tabletUp ? '16px' : '4px',
+            flexDirection: tabletUp ? 'row' : 'column',
+            flexWrap: 'wrap',
+          }}
+        >
+          <WeekHeader week={week} dataView={props.dataView} />
+
+          <MeetingSectionBadges
+            myAssignmentsTotal={myAssignmentsTotal}
+            lastUpdated={props.lastUpdated}
+            weekType={weekType}
+          />
+        </PrimaryFieldContainer>
+
+        {!noMeetingInfo.value && (
+          <SecondaryFieldContainer
+            sx={{ maxWidth: laptopUp ? '360px' : '100%' }}
+          >
+            <PersonComponent
+              label={`${t('tr_chairman')}:`}
+              week={week}
+              assignment="MM_Chairman_A"
+              dataView={props.dataView}
+            />
+          </SecondaryFieldContainer>
+        )}
+      </DoubleFieldContainer>
+
+      {!noMeetingInfo.value &&
+        MIDWEEK_FULL.includes(weekType) &&
+        showAuxCounselor && (
+          <DoubleFieldContainer
+            sx={{ flexDirection: laptopUp ? 'row' : 'column' }}
+          >
+            <PrimaryFieldContainer />
+
+            <SecondaryFieldContainer
+              sx={{
+                maxWidth: laptopUp ? '360px' : '100%',
+                gap: 'unset',
+              }}
+            >
+              <PersonComponent
+                week={week}
+                label={`${t('tr_auxClass')}:`}
+                assignment="MM_Chairman_B"
+                dataView={props.dataView}
+              />
+
+              <AuxClassGroup week={week} />
+            </SecondaryFieldContainer>
+          </DoubleFieldContainer>
+        )}
+
+      {noMeetingInfo.value && <Typography>{noMeetingInfo.event}</Typography>}
+
+      {!noMeetingInfo.value && (
+        <>
+          {MIDWEEK_FULL.includes(weekType) && (
+            <DoubleFieldContainer
+              sx={{ flexDirection: laptopUp ? 'row' : 'column' }}
+            >
+              <PrimaryFieldContainer>
+                {partTimings?.pgm_start && (
+                  <PartTiming time={partTimings.pgm_start} />
+                )}
+
+                <SongSource
+                  meeting="midweek"
+                  week={week}
+                  type="opening"
+                  dataView={props.dataView}
+                />
+              </PrimaryFieldContainer>
+              <SecondaryFieldContainer
+                sx={{ maxWidth: laptopUp ? '360px' : '100%' }}
+              >
+                <PersonComponent
+                  label={`${t('tr_prayer')}:`}
+                  week={week}
+                  dataView={props.dataView}
+                  assignment={
+                    !openingPrayerLinked
+                      ? 'MM_OpeningPrayer'
+                      : openingPrayerLinked
+                  }
+                />
+              </SecondaryFieldContainer>
+            </DoubleFieldContainer>
+          )}
+
+          {MIDWEEK_FULL.includes(weekType) && (
+            <DoubleFieldContainer
+              sx={{ flexDirection: laptopUp ? 'row' : 'column' }}
+            >
+              <PrimaryFieldContainer>
+                {partTimings?.opening_comments && (
+                  <PartTiming time={partTimings.opening_comments} />
+                )}
+
+                <Box
+                  sx={{ display: 'flex', flexDirection: 'column', gap: '4px' }}
+                >
+                  <Typography
+                    className="h4"
+                    sx={{
+                      color: 'var(--treasures-from-gods-word)',
+                    }}
+                  >
+                    {`${t('tr_openingComments')} ${t('tr_partDuration', { time: 1 })}`}
+                  </Typography>
+                </Box>
+              </PrimaryFieldContainer>
+              <SecondaryFieldContainer
+                sx={{ maxWidth: laptopUp ? '360px' : '100%' }}
+              />
+            </DoubleFieldContainer>
+          )}
+
+          {MIDWEEK_WITH_TREASURES.includes(weekType) && (
+            <TreasuresPart
+              week={week}
+              timings={partTimings}
+              dataView={props.dataView}
+            />
+          )}
+
+          {MIDWEEK_WITH_STUDENTS.includes(weekType) && (
+            <MinistryPart
+              week={week}
+              timings={partTimings}
+              dataView={props.dataView}
+            />
+          )}
+
+          {MIDWEEK_WITH_LIVING.includes(weekType) && (
+            <LivingPart
+              week={week}
+              timings={partTimings}
+              dataView={props.dataView}
+            />
+          )}
+        </>
+      )}
+    </Stack>
+  );
+};
+
+export default MidweekMeeting;

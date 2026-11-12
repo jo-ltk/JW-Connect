@@ -1,0 +1,79 @@
+import { Box } from '@mui/material';
+import { IconDelete, IconEncryptionKey } from '@components/icons';
+import IconLoading from '@components/icon_loading';
+import { useAppTranslation } from '@hooks/index';
+import useDeleteCongregation from './useDeleteCongregation';
+import Button from '@components/button';
+import Dialog from '@components/dialog';
+import DialogActions from '@components/dialog_actions';
+import TextField from '@components/textfield';
+
+const DeleteCongregation = () => {
+  const { t } = useAppTranslation();
+
+  const {
+    handleDeleteOpen,
+    modalOpen,
+    handleDeleteClose,
+    handleDelete,
+    isProcessing,
+    masterKey,
+    setMasterKey,
+  } = useDeleteCongregation();
+
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+      {modalOpen && (
+        <Dialog
+          onClose={handleDeleteClose}
+          open={modalOpen}
+          title={t('tr_deleteCongregation')}
+          description={t('tr_deleteCongregationDesc')}
+        >
+          <TextField
+            type="password"
+            placeholder={t('tr_deleteCongregationMasterKeyRequired')}
+            variant="outlined"
+            autoComplete="off"
+            value={masterKey}
+            onChange={(e) => setMasterKey(e.target.value)}
+            startIcon={<IconEncryptionKey />}
+            resetHelperPadding={true}
+          />
+
+          <DialogActions>
+            <Button
+              variant="secondary"
+              disabled={isProcessing}
+              onClick={handleDeleteClose}
+            >
+              {t('tr_cancel')}
+            </Button>
+            <Button
+              variant="main"
+              color="red"
+              disabled={masterKey.length < 16}
+              endIcon={isProcessing && <IconLoading color="var(--white)" />}
+              onClick={handleDelete}
+            >
+              {t('tr_delete')}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+
+      <Button
+        disableAutoStretch
+        variant="small"
+        color="red"
+        onClick={handleDeleteOpen}
+        startIcon={<IconDelete />}
+        sx={{ minHeight: '28px', height: '28px' }}
+      >
+        {t('tr_deleteCongregation')}
+      </Button>
+    </Box>
+  );
+};
+
+export default DeleteCongregation;

@@ -1,0 +1,62 @@
+import { IconDelete } from '@components/icons';
+import { useAppTranslation } from '@hooks/index';
+import { GroupDeleteProps } from './index.types';
+import useGroupDelete from './useGroupDelete';
+import Button from '@components/button';
+import Dialog from '@components/dialog';
+import DialogActions from '@components/dialog_actions';
+import IconButton from '@components/icon_button';
+import IconLoading from '@components/icon_loading';
+import Typography from '@components/typography';
+
+const GroupDelete = (props: GroupDeleteProps) => {
+  const { t } = useAppTranslation();
+
+  const {
+    group_name,
+    handleClose,
+    handleOpen,
+    open,
+    handleDelete,
+    isProcessing,
+  } = useGroupDelete(props);
+
+  return (
+    <>
+      <Dialog
+        onClose={handleClose}
+        open={open}
+        sx={{ gap: '16px' }}
+        title={t('tr_languageGroupDelete', { languageGroup: group_name })}
+      >
+        <Typography
+          className="body-regular"
+          sx={{
+            color: 'var(--grey-400)',
+          }}
+        >
+          {t('tr_languageGroupDeleteDesc')}
+        </Typography>
+        <DialogActions>
+          <Button variant="secondary" onClick={handleClose}>
+            {t('tr_cancel')}
+          </Button>
+          <Button
+            variant="main"
+            onClick={handleDelete}
+            color="red"
+            endIcon={isProcessing && <IconLoading />}
+          >
+            {t('tr_delete')}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <IconButton onClick={handleOpen} sx={{ padding: 0.2 }}>
+        <IconDelete color="var(--red-main)" />
+      </IconButton>
+    </>
+  );
+};
+
+export default GroupDelete;

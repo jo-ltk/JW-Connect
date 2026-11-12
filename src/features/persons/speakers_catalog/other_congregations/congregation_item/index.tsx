@@ -1,0 +1,179 @@
+import { useState } from 'react';
+import { Box, Collapse } from '@mui/material';
+import { IncomingCongregationType } from './index.types';
+import { useAppTranslation, useBreakpoints } from '@hooks/index';
+import { displaySnackNotification } from '@services/states/app';
+import useList from './useList';
+import CongregationInfoEdit from '../congregation_info/edit';
+import DeleteConfirm from '../../delete_confirm';
+import CongregationInfoView from '../congregation_info/view';
+import IncomingCongregationHeader from '../header';
+import SpeakersList from '../speakers_list';
+import Tabs from '@components/tabs';
+import Button from '@components/button';
+import { IconCheck, IconDelete, IconEdit } from '@components/icons';
+
+const IncomingCongregation = ({
+  congregation,
+  currentExpanded,
+  onChangeCurrentExpanded,
+}: IncomingCongregationType) => {
+  const { t } = useAppTranslation();
+
+  const {
+    handleToggleEdit,
+    isEditMode,
+    isExpanded,
+    handleToggleExpanded,
+    handleDeleteCongregation,
+  } = useList({
+    currentExpanded,
+    id: congregation.id,
+    onChangeCurrentExpanded,
+  });
+
+  const { tablet600Down } = useBreakpoints();
+
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+
+  const handleOpenConfirmDelete = () => setConfirmDeleteOpen(true);
+
+  const handleCloseConfirmDelete = () => setConfirmDeleteOpen(false);
+
+  const handleConfirmDelete = async () => {
+    try {
+      await handleDeleteCongregation();
+
+      setConfirmDeleteOpen(false);
+    } catch (error) {
+      console.error(error);
+
+      displaySnackNotification({
+        severity: 'error',
+        header: t('error_app_generic-title'),
+        message: (error as Error).message,
+      });
+    }
+  };
+
+  return (
+    <Box
+      sx={{
+        flexGrow: 1,
+        backgroundColor: 'var(--white)',
+        border: '1px solid var(--accent-300)',
+        padding: '8px 16px',
+        borderRadius: 'var(--radius-xl)',
+        width: '100%',
+        '& .congregation-actions': {
+          opacity: 0,
+          pointerEvents: 'none',
+          transition: 'opacity 150ms ease-in-out',
+        },
+        '&:hover .congregation-actions, &:focus-within .congregation-actions': {
+          opacity: 1,
+          pointerEvents: 'auto',
+        },
+        '@media (hover: none)': {
+          '& .congregation-actions': { opacity: 1, pointerEvents: 'auto' },
+        },
+      }}
+    >
+      {confirmDeleteOpen && (
+        <DeleteConfirm
+          open={confirmDeleteOpen}
+          title={t('tr_deleteIncomingCongregationTitle', {
+            congregationName: congregation.cong_data.cong_name.value,
+          })}
+          description={t('tr_deleteIncomingCongregationDesc')}
+          onCancel={handleCloseConfirmDelete}
+          onConfirm={handleConfirmDelete}
+        />
+      )}
+
+      <IncomingCongregationHeader
+        cong_name={congregation.cong_data.cong_name.value}
+        cong_number={congregation.cong_data.cong_number.value}
+        cong_synced={congregation.cong_data.cong_id.length > 0}
+        editMode={isEditMode}
+        expanded={isExpanded}
+        onEditModeChange={handleToggleEdit}
+        onExpandChange={handleToggleExpanded}
+        onDelete={handleOpenConfirmDelete}
+      />
+
+      <Collapse in={isExpanded} unmountOnExit>
+        {tablet600Down && (
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'row',
+              width: '100%',
+              justifyContent: 'space-between',
+              gap: '8px',
+            }}
+          >
+            {tablet600Down && (
+              <Button
+                variant="small"
+                startIcon={<IconDelete />}
+                color="red"
+                onClick={handleOpenConfirmDelete}
+                sx={{ width: tablet600Down ? 'fit-content' : 'auto' }}
+              >
+                {t('tr_delete')}
+              </Button>
+            )}
+            <Button
+              variant="small"
+              startIcon={isEditMode ? <IconCheck /> : <IconEdit />}
+              onClick={handleToggleEdit}
+              sx={{ width: tablet600Down ? 'fit-content' : 'auto' }}
+            >
+              {isEditMode ? t('tr_done') : t('tr_edit')}
+            </Button>
+          </Box>
+        )}
+        <Box
+          sx={{
+            borderTop: '1px solid var(--accent-200)',
+            marginTop: '16px',
+            paddingTop: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+          }}
+        >
+          <Box sx={{ marginTop: '-16px', marginBottom: '-16px' }}>
+            <Tabs
+              tabs={[
+                {
+                  label: t('tr_speakers'),
+                  Component: (
+                    <SpeakersList
+                      isEditMode={isEditMode}
+                      cong_id={congregation.id}
+                      cong_synced={congregation.cong_data.cong_id.length > 0}
+                    />
+                  ),
+                },
+                {
+                  label: t('tr_congregationInfo'),
+                  Component: isEditMode ? (
+                    <CongregationInfoEdit
+                      cong_number={congregation.cong_data.cong_number.value}
+                    />
+                  ) : (
+                    <CongregationInfoView congregation={congregation} />
+                  ),
+                },
+              ]}
+            />
+          </Box>
+        </Box>
+      </Collapse>
+    </Box>
+  );
+};
+
+export default IncomingCongregation;

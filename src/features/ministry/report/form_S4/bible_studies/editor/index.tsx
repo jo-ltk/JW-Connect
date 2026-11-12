@@ -1,0 +1,45 @@
+import { useAppTranslation } from '@hooks/index';
+import { BibleStudyEditorProps } from './index.types';
+import useBibleStudy from './useBibleStudy';
+import Button from '@components/button';
+import Dialog from '@components/dialog';
+import DialogActions from '@components/dialog_actions';
+import TextField from '@components/textfield';
+
+const BibleStudyEditor = (props: BibleStudyEditorProps) => {
+  const { t } = useAppTranslation();
+
+  const { value, handleSave, handleDelete, handleChange } =
+    useBibleStudy(props);
+
+  return (
+    <Dialog
+      open={props.open}
+      onClose={props.onClose}
+      sx={{ padding: '12px 24px', alignItems: 'stretch' }}
+      title={props.bibleStudy ? t('tr_editBibleStudy') : t('tr_addNewStudy')}
+      closable
+    >
+      <TextField
+        label={t('tr_name')}
+        value={value}
+        onChange={(e) => handleChange(e.target.value)}
+      />
+
+      <DialogActions>
+        <Button
+          variant="secondary"
+          color="red"
+          onClick={props.bibleStudy ? handleDelete : props.onClose}
+        >
+          {props.bibleStudy ? t('tr_deleteStudy') : t('tr_cancel')}
+        </Button>
+        <Button variant="main" onClick={handleSave}>
+          {props.bibleStudy ? t('tr_saveChanges') : t('tr_save')}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default BibleStudyEditor;

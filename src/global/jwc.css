@@ -1,0 +1,420 @@
+/*
+JW Connect: MEPTOR visual language (docs/02-design-system.md).
+
+Everything is scoped under body.jwc-shell, which is set only while a JW Connect
+screen (home, schedule workspace) is mounted. The original Organized screens
+keep their own theme. Portalled surfaces (dialogs, menus, autocomplete lists)
+are children of <body>, so they follow the same scope.
+
+Organized components read their colours from --accent-*, --black, --white and
+--grey-* variables. Redefining them here gives every component inside the
+shell the MEPTOR teal palette. Variables that Organized computes from other
+variables at :root (gradient top, glows) are recomputed here.
+*/
+
+@font-face {
+  font-family: 'Instrument Sans';
+  src: url('/assets/fonts/InstrumentSans-Variable.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── tokens: teal-light ── */
+body.jwc-shell {
+  /* MEPTOR source ramp */
+  --jwc-ink: #0d191c;
+  --jwc-ink2: #4a5b60;
+  --jwc-line: rgba(13, 25, 28, 0.12);
+  --jwc-g0: #f1f8f9;
+  --jwc-g1: #e1f1f3;
+  --jwc-g2: #c3e3e8;
+  --jwc-g3: #9fd3dc;
+  --jwc-g4: #5a9ea8;
+  --jwc-g5: #2b636b;
+  --jwc-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --jwc-sans:
+    'Instrument Sans', 'Anek Malayalam', 'Noto Sans Malayalam', system-ui,
+    sans-serif;
+
+  /* shape */
+  --radius-s: 6px;
+  --radius-m: 10px;
+  --radius-l: 12px;
+  --radius-xl: 16px;
+  --radius-xxl: 20px;
+  --radius-panel: 28px;
+
+  /* depth and surfaces */
+  --jwc-page: linear-gradient(180deg, #f1f8f9 0%, #ffffff 420px);
+  --jwc-card: #ffffff;
+  --jwc-card-shadow:
+    0 0 0 1px rgba(13, 25, 28, 0.07), 0 10px 26px -12px rgba(13, 25, 28, 0.2),
+    0 2px 6px -2px rgba(13, 25, 28, 0.07);
+  --jwc-glass: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.88),
+    rgba(242, 248, 249, 0.62)
+  );
+  --jwc-glass-stroke: inset 0 0 0 1px rgba(255, 255, 255, 0.95);
+  --jwc-glass-bar: rgba(255, 255, 255, 0.72);
+  --jwc-glass-blur: blur(18px) saturate(160%);
+  --jwc-primary-text: #12363c;
+  --jwc-primary-bg: linear-gradient(
+    180deg,
+    #dcf0f3 0%,
+    #b3dce3 55%,
+    #98ccd5 100%
+  );
+  --jwc-primary-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    inset 0 -10px 16px -10px rgba(40, 112, 122, 0.25),
+    0 0 0 1px rgba(40, 100, 110, 0.12),
+    0 12px 28px -12px rgba(70, 150, 160, 0.5),
+    0 2px 6px -2px rgba(13, 25, 28, 0.08);
+  --jwc-primary-shadow-hover:
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    inset 0 -10px 16px -10px rgba(40, 112, 122, 0.3),
+    0 0 0 1px rgba(40, 100, 110, 0.14),
+    0 16px 34px -14px rgba(70, 150, 160, 0.6),
+    0 2px 6px -2px rgba(13, 25, 28, 0.08);
+  --jwc-secondary-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.95), inset 0 1px 1px #fff,
+    inset 0 -8px 14px -8px rgba(159, 211, 220, 0.28),
+    0 0 0 1px rgba(13, 25, 28, 0.07), 0 10px 26px -12px rgba(13, 25, 28, 0.2),
+    0 2px 6px -2px rgba(13, 25, 28, 0.07);
+  --jwc-secondary-shadow-hover:
+    inset 0 0 0 1px #fff, inset 0 1px 1px #fff,
+    inset 0 -8px 14px -8px rgba(159, 211, 220, 0.4),
+    0 0 0 1px rgba(13, 25, 28, 0.06),
+    0 16px 34px -14px rgba(70, 150, 160, 0.38),
+    0 2px 6px -2px rgba(13, 25, 28, 0.06);
+  --jwc-arrow-bg: linear-gradient(180deg, #fff, #eff5f6);
+  --jwc-marker-ring: #e1f1f3;
+  --jwc-num: linear-gradient(180deg, #0d191c 30%, #5a9ea8 120%);
+
+  /* Meeting Duties reads these two (see duties_theme.ts) */
+  --duty-marker: rgba(159, 211, 220, 1);
+  --duty-panel-shadow: var(--jwc-card-shadow);
+
+  /* Organized tokens, mapped (design system §2) */
+  --accent-100-base: 241, 248, 249;
+  --accent-100: rgba(var(--accent-100-base), 1);
+  --accent-150-base: 225, 241, 243;
+  --accent-150: rgba(var(--accent-150-base), 1);
+  --accent-200-base: 195, 227, 232;
+  --accent-200: rgba(var(--accent-200-base), 1);
+  --accent-300-base: 159, 211, 220;
+  --accent-300: rgba(var(--accent-300-base), 1);
+  --accent-350-base: 125, 188, 198;
+  --accent-350: rgba(var(--accent-350-base), 1);
+  --accent-400-base: 74, 91, 96;
+  --accent-400: rgba(var(--accent-400-base), 1);
+  --accent-main-base: 43, 99, 107;
+  --accent-main: rgba(var(--accent-main-base), 1);
+  --accent-dark-base: 18, 54, 60;
+  --accent-dark: rgba(var(--accent-dark-base), 1);
+  --accent-click-base: 31, 76, 83;
+  --accent-click: rgba(var(--accent-click-base), 1);
+  --accent-dark-overlay-base: 5, 12, 14;
+  --accent-dark-overlay: rgba(var(--accent-dark-overlay-base), 0.48);
+  --black-base: 13, 25, 28;
+  --black: rgba(var(--black-base), 1);
+  --white-base: 255, 255, 255;
+  --white: rgba(var(--white-base), 1);
+  --grey-400-base: 74, 91, 96;
+  --grey-400: rgba(var(--grey-400-base), 1);
+  --grey-350-base: 107, 123, 128;
+  --grey-350: rgba(var(--grey-350-base), 1);
+  --grey-300-base: 154, 167, 171;
+  --grey-300: rgba(var(--grey-300-base), 1);
+  --grey-200-base: 223, 228, 229;
+  --grey-200: rgba(var(--grey-200-base), 1);
+
+  /* recomputed from the variables above */
+  --accent-gradient-top: color-mix(in oklch, var(--accent-main), white 15%);
+  --btn-hover-overlay: rgba(var(--accent-dark-overlay-base), 0.22);
+  --message-glow: 0px 8px 24px 0px rgba(var(--accent-main-base), 0.24);
+  --message-glow-small: 0px var(--message-glow-small-offset-y)
+    var(--message-glow-small-blur) 0px rgba(var(--accent-main-base), 0.24);
+
+  background: var(--jwc-page);
+  background-attachment: fixed;
+  color: var(--black);
+}
+
+/* ── tokens: teal-dark (from the MEPTOR dark section) ── */
+:root[data-theme$='dark'] body.jwc-shell {
+  --jwc-ink: #ecf5f6;
+  --jwc-ink2: rgba(236, 245, 246, 0.68);
+  --jwc-line: rgba(236, 245, 246, 0.14);
+  --jwc-page: #050c0e;
+  --jwc-card: #0a1619;
+  --jwc-card-shadow:
+    0 0 0 1px rgba(236, 245, 246, 0.1), 0 18px 40px -20px rgba(0, 0, 0, 0.7);
+  --jwc-glass: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.12),
+    rgba(255, 255, 255, 0.05)
+  );
+  --jwc-glass-stroke: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  --jwc-glass-bar: rgba(10, 22, 25, 0.72);
+  --jwc-secondary-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    inset 0 1px 1px rgba(255, 255, 255, 0.12),
+    0 12px 30px -14px rgba(0, 0, 0, 0.6);
+  --jwc-secondary-shadow-hover:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.24),
+    inset 0 1px 1px rgba(255, 255, 255, 0.16),
+    0 16px 34px -14px rgba(90, 158, 168, 0.35);
+  --jwc-primary-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 12px 28px -12px rgba(90, 158, 168, 0.45);
+  --jwc-primary-shadow-hover:
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.55),
+    0 16px 34px -14px rgba(90, 158, 168, 0.6);
+  --jwc-arrow-bg: linear-gradient(180deg, #ffffff, #e6f1f3);
+  --jwc-marker-ring: rgba(159, 211, 220, 0.18);
+  --jwc-num: linear-gradient(180deg, #ecf5f6 30%, #9fd3dc 120%);
+
+  --duty-marker: rgba(90, 158, 168, 1);
+
+  --accent-100-base: 5, 12, 14;
+  --accent-150-base: 25, 41, 45;
+  --accent-200-base: 37, 56, 60;
+  --accent-300-base: 58, 82, 87;
+  --accent-350-base: 90, 158, 168;
+  --accent-400-base: 159, 190, 196;
+  --accent-main-base: 159, 211, 220;
+  --accent-dark-base: 195, 227, 232;
+  --accent-click-base: 125, 188, 198;
+  --accent-dark-overlay-base: 0, 0, 0;
+  --black-base: 236, 245, 246;
+  --white-base: 10, 22, 25;
+  --grey-400-base: 164, 174, 175;
+  --grey-350-base: 123, 134, 136;
+  --grey-300-base: 91, 102, 104;
+  --grey-200-base: 41, 53, 56;
+}
+
+/* ── typography (design system §3) ── */
+body.jwc-shell,
+body.jwc-shell
+  :is(p, span, div, button, input, textarea, label, li, a, h1, h2, h3, h4),
+body.jwc-shell .MuiTypography-root {
+  font-family: var(--jwc-sans) !important;
+  font-feature-settings: normal;
+}
+
+body.jwc-shell {
+  -webkit-font-smoothing: antialiased;
+}
+
+:where(body.jwc-shell) .h1 {
+  font-size: 28px;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+:where(body.jwc-shell) .h2 {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+:where(body.jwc-shell) .h3,
+:where(body.jwc-shell) .h4 {
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+:where(body.jwc-shell) .body-regular {
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+:where(body.jwc-shell) :is(.body-small-regular, .body-small-semibold) {
+  font-size: 13px;
+}
+
+/* Malayalam: no negative tracking, taller lines (design system §3) */
+body.jwc-shell :lang(ml),
+body.jwc-shell :lang(ml) :is(.h1, .h2, .h3, .h4) {
+  letter-spacing: 0 !important;
+  line-height: 1.45;
+}
+
+/* ── components ── */
+
+/* buttons: pill shape everywhere; colours stay with each button */
+body.jwc-shell .MuiButton-root {
+  border-radius: 999px;
+  letter-spacing: -0.01em;
+  transition:
+    translate 0.6s var(--jwc-ease),
+    box-shadow 0.6s var(--jwc-ease),
+    background 0.6s var(--jwc-ease);
+}
+
+/* MEPTOR buttons are sentence case (Organized uses uppercase) */
+:where(body.jwc-shell) :is(.button-caps, .button-small-caps) {
+  text-transform: none;
+  letter-spacing: -0.01em;
+}
+
+/* fields: hairline, larger radius */
+body.jwc-shell .MuiOutlinedInput-root {
+  border-radius: var(--radius-l);
+}
+
+/* dialogs and menus */
+body.jwc-shell .MuiDialog-paper {
+  border-radius: var(--radius-xxl) !important;
+  background-color: var(--jwc-card);
+  box-shadow: var(--jwc-card-shadow);
+  animation: jwc-sheet-in 0.4s var(--jwc-ease) both;
+}
+
+body.jwc-shell :is(.MuiMenu-paper, .MuiPopover-paper) {
+  border-radius: var(--radius-xl) !important;
+  background: var(--jwc-glass-bar);
+  -webkit-backdrop-filter: var(--jwc-glass-blur);
+  backdrop-filter: var(--jwc-glass-blur);
+  box-shadow: var(--jwc-glass-stroke), var(--jwc-card-shadow) !important;
+}
+
+/* top bar: glass */
+body.jwc-shell header.MuiAppBar-root {
+  background: var(--jwc-glass-bar) !important;
+  -webkit-backdrop-filter: var(--jwc-glass-blur);
+  backdrop-filter: var(--jwc-glass-blur);
+  border-bottom: 1px solid var(--jwc-line) !important;
+}
+
+/* focus ring */
+body.jwc-shell :focus-visible {
+  outline: 2px solid var(--jwc-g4);
+  outline-offset: 3px;
+}
+
+/*
+Person selection as a bottom sheet on phones (schedule workspace only).
+The Organized person selectors are MUI autocompletes; their option list is
+moved to the bottom of the screen, above the keyboard, with large rows.
+*/
+@media (max-width: 687.98px) {
+  body.jwc-shell.jwc-schedule .MuiAutocomplete-popper {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    z-index: 1400 !important;
+  }
+
+  body.jwc-shell.jwc-schedule .MuiAutocomplete-popper > .MuiPaper-root,
+  body.jwc-shell.jwc-schedule .MuiAutocomplete-popper .MuiAutocomplete-paper {
+    position: relative;
+    margin: 0 !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding: 18px 8px calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+    background: var(--jwc-card) !important;
+    box-shadow:
+      0 -1px 0 var(--jwc-line),
+      0 -18px 40px -12px rgba(13, 25, 28, 0.35) !important;
+    animation: jwc-sheet-up 0.4s var(--jwc-ease) both;
+  }
+
+  /* grab handle */
+  body.jwc-shell.jwc-schedule .MuiAutocomplete-popper > .MuiPaper-root::before,
+  body.jwc-shell.jwc-schedule
+    .MuiAutocomplete-popper
+    .MuiAutocomplete-paper::before {
+    content: '';
+    position: absolute;
+    top: 7px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    margin-left: -18px;
+    border-radius: 999px;
+    background: var(--jwc-line);
+  }
+
+  body.jwc-shell.jwc-schedule .MuiAutocomplete-listbox {
+    max-height: min(52dvh, 420px) !important;
+  }
+
+  body.jwc-shell.jwc-schedule .MuiAutocomplete-option {
+    min-height: 52px !important;
+    border-radius: var(--radius-l);
+  }
+
+  /* keep the field being filled in visible above the sheet */
+  body.jwc-shell.jwc-schedule .MuiAutocomplete-root {
+    /* top bar (62px) + sticky week bar */
+    scroll-margin-top: 150px;
+  }
+}
+
+/* ── motion (design system §6) ── */
+@keyframes jwc-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes jwc-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes jwc-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes jwc-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(90, 158, 168, 0.45);
+  }
+  100% {
+    box-shadow: 0 0 0 8px rgba(90, 158, 168, 0);
+  }
+}
+
+body.jwc-shell .jwc-rise {
+  animation: jwc-rise 0.4s var(--jwc-ease) backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.jwc-shell *,
+  body.jwc-shell *::before,
+  body.jwc-shell *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-property: opacity !important;
+    scroll-behavior: auto !important;
+  }
+}

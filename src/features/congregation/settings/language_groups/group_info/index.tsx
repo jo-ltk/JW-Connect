@@ -1,0 +1,82 @@
+import { Box } from '@mui/material';
+import { useAppTranslation } from '@hooks/index';
+import { GroupInfoProps } from './index.types';
+import useGroupInfo from './useGroupInfo';
+import Button from '@components/button';
+import Dialog from '@components/dialog';
+import DialogActions from '@components/dialog_actions';
+import IconLoading from '@components/icon_loading';
+import LanguageGroupMembers from '../group_members';
+import LanguageGroupDetails from '../group_details';
+import Tabs from '@components/tabs';
+
+const GroupInfo = (props: GroupInfoProps) => {
+  const { t } = useAppTranslation();
+
+  const {
+    isProcessing,
+    handleSaveChange,
+    groupEdit,
+    handleCircuitChange,
+    handleLanguageChange,
+    handleNameChange,
+    circuit,
+    handleClose,
+    handleGroupChange,
+    language,
+  } = useGroupInfo(props);
+
+  return (
+    <Dialog
+      onClose={handleClose}
+      open={props.open}
+      sx={{ gap: '16px' }}
+      title={t('tr_languageGroupEdit')}
+    >
+      <Box sx={{ margin: '0 0 -16px 0', width: '100%' }}>
+        <Tabs
+          tabs={[
+            {
+              label: t('tr_details'),
+              Component: (
+                <LanguageGroupDetails
+                  name={groupEdit.group_data.name}
+                  onNameChange={handleNameChange}
+                  circuit={circuit}
+                  onCircuitChange={handleCircuitChange}
+                  language={language}
+                  onLanguageChange={handleLanguageChange}
+                />
+              ),
+            },
+            {
+              label: t('tr_groupMembers'),
+              Component: (
+                <LanguageGroupMembers
+                  readOnly={isProcessing}
+                  group={groupEdit}
+                  onChange={handleGroupChange}
+                />
+              ),
+            },
+          ]}
+        />
+      </Box>
+
+      <DialogActions>
+        <Button variant="secondary" onClick={handleClose}>
+          {t('tr_cancel')}
+        </Button>
+        <Button
+          variant="main"
+          onClick={handleSaveChange}
+          endIcon={isProcessing && <IconLoading />}
+        >
+          {t('tr_save')}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default GroupInfo;

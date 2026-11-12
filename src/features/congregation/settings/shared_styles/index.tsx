@@ -1,0 +1,75 @@
+import { FC, PropsWithChildren } from 'react';
+import { Stack, StackProps, SxProps } from '@mui/material';
+import Markup from '@components/text_markup';
+import Typography from '@components/typography';
+import Divider from '@components/divider';
+
+export { CardSection, TwoColumnsRow } from './index.styles';
+
+export const CardSectionTitle = ({ children }: PropsWithChildren) => {
+  return <Typography className="h2">{children}</Typography>;
+};
+
+export const CardSubSectionTitle = ({ children }: PropsWithChildren) => {
+  return <Typography className="h3">{children}</Typography>;
+};
+
+export const CardSectionDescription = ({ content }: { content: string }) => {
+  return (
+    <Markup
+      anchorStyle={{
+        fontSize: 'inherit',
+      }}
+      color="var(--grey-400)"
+      className="body-small-regular"
+      content={content}
+    />
+  );
+};
+
+export const CardSectionHeader = ({
+  title,
+  description,
+  sx,
+}: {
+  title: string;
+  description?: string;
+  sx?: SxProps;
+}) => {
+  return (
+    <Stack spacing="8px" sx={sx}>
+      <CardSectionTitle>{title}</CardSectionTitle>
+      {description && <CardSectionDescription content={description} />}
+    </Stack>
+  );
+};
+
+export const CardSubSectionHeader = ({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) => {
+  return (
+    <Stack spacing="4px">
+      <CardSubSectionTitle>{title}</CardSubSectionTitle>
+      {description && <CardSectionDescription content={description} />}      
+    </Stack>
+  );
+};
+
+export const CardSectionContent: FC<StackProps & PropsWithChildren> = ({
+  children,
+  ...props
+}) => {
+  return (
+    <Stack
+      spacing="16px"
+      divider={<Divider color="var(--accent-200)" />}
+      {...props}
+    >
+      {children}
+    </Stack>
+  );
+};
