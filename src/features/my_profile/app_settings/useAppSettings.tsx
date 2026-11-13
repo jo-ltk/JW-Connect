@@ -5,7 +5,6 @@ import {
   backupAutoState,
   backupIntervalState,
   hapticsEnabledState,
-  themeFollowOSEnabledState,
 } from '@states/settings';
 import { useBreakpoints, useIsTouchDevice } from '@hooks/index';
 
@@ -16,12 +15,10 @@ const useAppSettings = () => {
 
   const autoBackup = useAtomValue(backupAutoState);
   const autoBackupInterval = useAtomValue(backupIntervalState);
-  const followOSTheme = useAtomValue(themeFollowOSEnabledState);
   const hapticsOn = useAtomValue(hapticsEnabledState);
 
   const [autoSync, setAutoSync] = useState(autoBackup);
   const [autoSyncInterval, setAutoSyncInterval] = useState(autoBackupInterval);
-  const [syncTheme, setSyncTheme] = useState(followOSTheme);
   const [haptics, setHaptics] = useState(hapticsOn);
 
   const handleSwitchAutoBackup = async (value) => {
@@ -46,17 +43,6 @@ const useAppSettings = () => {
     });
   };
 
-  const handleUpdateSyncTheme = async (value) => {
-    setSyncTheme(value);
-
-    await dbAppSettingsUpdate({
-      'user_settings.theme_follow_os_enabled': {
-        value,
-        updatedAt: new Date().toISOString(),
-      },
-    });
-  };
-
   const handleUpdateHaptics = async (value: boolean) => {
     setHaptics(value);
 
@@ -69,10 +55,6 @@ const useAppSettings = () => {
   };
 
   useEffect(() => {
-    setSyncTheme(followOSTheme);
-  }, [followOSTheme]);
-
-  useEffect(() => {
     setHaptics(hapticsOn);
   }, [hapticsOn]);
 
@@ -82,8 +64,6 @@ const useAppSettings = () => {
     autoSyncInterval,
     handleUpdateSyncInterval,
     laptopUp,
-    syncTheme,
-    handleUpdateSyncTheme,
     haptics,
     handleUpdateHaptics,
     showHaptics,

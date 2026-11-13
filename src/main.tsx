@@ -17,18 +17,6 @@ const getInitialColor = () => {
   }
 };
 
-const getInitialTheme = () => {
-  const savedTheme = localStorage.getItem('theme');
-
-  if (!savedTheme) return 'light';
-
-  try {
-    return JSON.parse(savedTheme) as string;
-  } catch {
-    return savedTheme;
-  }
-};
-
 const getInitialDirection = () => {
   const savedLang = localStorage.getItem('ui_lang') || 'eng';
   const direction = LANGUAGE_LIST.find(
@@ -41,7 +29,9 @@ const getInitialDirection = () => {
 const direction = getInitialDirection();
 document.documentElement.setAttribute('dir', direction);
 
-const theme = getInitialTheme();
+// The app runs in light mode only.
+const theme = 'light';
+localStorage.setItem('theme', JSON.stringify(theme));
 const color = getInitialColor();
 const newTheme = `${color}-${theme}`;
 document.documentElement.setAttribute('data-theme', newTheme);

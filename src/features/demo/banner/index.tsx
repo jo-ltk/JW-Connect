@@ -15,9 +15,11 @@ const DemoBanner = ({
         backgroundColor:
           environment === 'TEST' ? 'var(--accent-main)' : 'var(--green-main)',
 
-        borderRadius: '10px',
-        padding: '1px 0',
-        marginTop: '-2px',
+        borderRadius: 'var(--radius-max)',
+        padding: '2px 8px',
+        lineHeight: 1.2,
+        width: 'fit-content',
+        flexShrink: 0,
       }}
     >
       {environment}

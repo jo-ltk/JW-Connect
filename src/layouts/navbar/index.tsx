@@ -32,7 +32,6 @@ import Button from '@components/button';
 import DemoBanner from '@features/demo/banner';
 import JwcLogo from '@features/jwc/logo';
 import LanguageSwitcher from '@features/language_switcher';
-import ThemeSwitcher from '@features/theme_switcher';
 import Typography from '@components/typography';
 import IconButton from '@components/icon_button';
 import BottomMenu from '@layouts/bottom_menu';
@@ -143,8 +142,8 @@ const NavBar = ({ isSupported }: NavBarType) => {
                   <Box
                     sx={{
                       display: 'flex',
-                      flexDirection: 'column',
-                      gap: '2px',
+                      alignItems: 'center',
+                      gap: '8px',
                     }}
                   >
                     <JwcLogo />
@@ -171,26 +170,6 @@ const NavBar = ({ isSupported }: NavBarType) => {
                       }}
                     />
                   )}
-
-                  <ThemeSwitcher
-                    sx={{
-                      height: '40px',
-                      padding: '0 8px',
-                      borderRadius: 'var(--radius-max)',
-                      cursor: 'pointer',
-                      transition: 'background-color 0.3s',
-                      '&:hover': {
-                        backgroundColor: 'var(--accent-200)',
-                        '& .MuiSwitch-track': {
-                          backgroundColor: 'var(--accent-300)',
-                          transition: 'background-color 0.3s',
-                        },
-                      },
-                      '& .MuiSwitch-track': {
-                        transition: 'background-color 0.3s',
-                      },
-                    }}
-                  />
 
                   {tabletUp && (isAppLoad || isTest) && (
                     <LanguageSwitcher

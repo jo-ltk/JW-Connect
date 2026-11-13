@@ -20,11 +20,8 @@ import { LANGUAGE_LIST } from '@constants/index';
 
 export const appThemeNameState = atomWithStorage('theme', 'light');
 
-export const isDarkThemeState = atom((get) => {
-  const theme = get(appThemeNameState);
-
-  return theme === 'dark';
-});
+// The app runs in light mode only.
+export const isDarkThemeState = atom(() => false);
 
 export const offlineOverrideState = atom(false);
 
