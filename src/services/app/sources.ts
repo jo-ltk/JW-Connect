@@ -76,12 +76,19 @@ const getAYFAssignmentTypes = (sourceLanguage: string) => {
         record.assignment_type_name.E ??
         '';
 
+      // also match English wording, for materials imported in English
+      const labels = [label, record.assignment_type_name.E ?? ''];
+
       // a translation may list every known wording for a given assignment,
       // pipe-separated: each variation is a distinct label to match against
-      return splitTranslationVariations(label).map((variation) => ({
-        label: variation,
-        value: record.code,
-      }));
+      const variations = new Set(labels.flatMap(splitTranslationVariations));
+
+      return Array.from(variations)
+        .filter((variation) => variation.length > 0)
+        .map((variation) => ({
+          label: variation,
+          value: record.code,
+        }));
     })
     .sort((a, b) => {
       return a.value > b.value ? 1 : -1;

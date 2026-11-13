@@ -52,7 +52,14 @@ const useStart = () => {
       await dbPersonsAssignFamilyHeads();
 
       if (isNavigatorOnline) {
-        const { data, status } = await apiFetchSources();
+        let { data, status } = await apiFetchSources();
+
+        // the source server has no data for some languages (e.g. Malayalam):
+        // seed the demo with English materials so schedules can be tried out
+        if (status === 200 && !data?.length) {
+          ({ data, status } = await apiFetchSources('E'));
+        }
+
         if (status === 200 && data?.length) {
           await sourcesImportJW(data);
           await dbSchedulesAutoFill();

@@ -132,7 +132,7 @@ describe('JW Connect', { testIsolation: false }, () => {
     cy.location('hash').should('eq', '#/schedule/midweek');
     cy.get('[role="tab"]').should('have.length', 3);
     cy.get('[data-testid="jwc-schedule-view"]').should('exist');
-    cy.contains('Chairman');
+    cy.contains('അധ്യക്ഷൻ'); // schedule labels print in Malayalam
     cy.wait(800);
     cy.screenshot('jwc-03-schedule-midweek-desktop', { capture: 'viewport' });
 
@@ -146,7 +146,7 @@ describe('JW Connect', { testIsolation: false }, () => {
       cy.contains('[role="tab"]', 'Weekend').click();
       cy.location('hash').should('eq', '#/schedule/weekend');
       weekLabel().should('eq', label);
-      cy.contains('Watchtower', { matchCase: false });
+      cy.contains('പഠനം'); // Watchtower Study (Malayalam)
       cy.wait(600);
       cy.screenshot('jwc-04-schedule-weekend-desktop', { capture: 'viewport' });
 
@@ -169,8 +169,8 @@ describe('JW Connect', { testIsolation: false }, () => {
       readTable<{ weekOf: string }>('duty_schedules').then((rows) => {
         expect(rows.length, 'one duty week generated').to.eq(1);
         const date = new Date(rows[0].weekOf);
-        const month = date.toLocaleString('en', { month: 'long' });
-        expect(label).to.contain(`${month} ${date.getDate()},`);
+        // the label's month is localized (Malayalam), so compare the day
+        expect(label).to.match(new RegExp(` ${date.getDate()}$`));
       });
 
       cy.wait(600);
@@ -279,28 +279,13 @@ describe('JW Connect', { testIsolation: false }, () => {
     cy.screenshot('jwc-13-duties-mobile', { capture: 'viewport' });
   });
 
-  it('dark appearance', () => {
+  it('light appearance only', () => {
     cy.viewport(...DESKTOP);
     goTo('/');
-    cy.get('header .MuiSwitch-input').first().click({ force: true });
-    cy.get('body').then(($body) => {
-      const confirm = $body.find('[role="dialog"] button:contains("Confirm")');
-      if (confirm.length) cy.wrap(confirm.first()).click();
-    });
-    cy.get('html').invoke('attr', 'data-theme').should('match', /dark$/);
-    cy.wait(800);
-    cy.screenshot('jwc-14-home-dark-desktop', { capture: 'viewport' });
-
-    cy.viewport(...MOBILE);
-    cy.get('nav[aria-label="Main navigation"]')
-      .contains('button', 'Schedule')
-      .click();
-    cy.contains('[role="tab"]', 'Midweek').click();
-    cy.wait(1000);
-    cy.screenshot('jwc-15-schedule-dark-mobile', { capture: 'viewport' });
+    cy.get('header .MuiSwitch-input').should('not.exist');
+    cy.get('html').invoke('attr', 'data-theme').should('match', /light$/);
 
     // the hidden Organized screens keep their own look (and still work)
-    cy.viewport(...DESKTOP);
     goTo('/dashboard');
     cy.get('body').should('not.have.class', 'jwc-shell');
     cy.contains('Meetings');
